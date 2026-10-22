@@ -7,17 +7,41 @@
   function mod(x, n) { return ((x % n) + n) % n; }
 
   var CITIES = {
-    duhok:     { lat: 36.867, lon: 42.950, tz: 3, n: { 'ku-ba': 'دهۆک', 'ku-so': 'دهۆک', ar: 'دهوك', en: 'Duhok' } },
-    zakho:     { lat: 37.144, lon: 42.682, tz: 3, n: { 'ku-ba': 'زاخۆ', 'ku-so': 'زاخۆ', ar: 'زاخو', en: 'Zakho' } },
-    erbil:     { lat: 36.191, lon: 44.009, tz: 3, n: { 'ku-ba': 'هەولێر', 'ku-so': 'هەولێر', ar: 'أربيل', en: 'Erbil' } },
-    sulaimani: { lat: 35.557, lon: 45.435, tz: 3, n: { 'ku-ba': 'سلێمانی', 'ku-so': 'سلێمانی', ar: 'السليمانية', en: 'Sulaymaniyah' } },
-    kirkuk:    { lat: 35.468, lon: 44.392, tz: 3, n: { 'ku-ba': 'کەرکووک', 'ku-so': 'کەرکووک', ar: 'كركوك', en: 'Kirkuk' } },
-    mosul:     { lat: 36.340, lon: 43.130, tz: 3, n: { 'ku-ba': 'مووسڵ', 'ku-so': 'مووسڵ', ar: 'الموصل', en: 'Mosul' } },
+    duhok:     { lat: 36.867, lon: 42.950, tz: 3, cal: true, n: { 'ku-ba': 'دهۆک', 'ku-so': 'دهۆک', ar: 'دهوك', en: 'Duhok' } },
+    zakho:     { lat: 37.144, lon: 42.682, tz: 3, cal: true, n: { 'ku-ba': 'زاخۆ', 'ku-so': 'زاخۆ', ar: 'زاخو', en: 'Zakho' } },
+    erbil:     { lat: 36.191, lon: 44.009, tz: 3, cal: true, n: { 'ku-ba': 'هەولێر', 'ku-so': 'هەولێر', ar: 'أربيل', en: 'Erbil' } },
+    sulaimani: { lat: 35.557, lon: 45.435, tz: 3, cal: true, n: { 'ku-ba': 'سلێمانی', 'ku-so': 'سلێمانی', ar: 'السليمانية', en: 'Sulaymaniyah' } },
+    kirkuk:    { lat: 35.468, lon: 44.392, tz: 3, cal: true, n: { 'ku-ba': 'کەرکووک', 'ku-so': 'کەرکووک', ar: 'كركوك', en: 'Kirkuk' } },
+    mosul:     { lat: 36.340, lon: 43.130, tz: 3, cal: true, n: { 'ku-ba': 'مووسڵ', 'ku-so': 'مووسڵ', ar: 'الموصل', en: 'Mosul' } },
     baghdad:   { lat: 33.315, lon: 44.366, tz: 3, n: { 'ku-ba': 'بەغدا', 'ku-so': 'بەغدا', ar: 'بغداد', en: 'Baghdad' } },
     basra:     { lat: 30.508, lon: 47.783, tz: 3, n: { 'ku-ba': 'بەسرە', 'ku-so': 'بەسرە', ar: 'البصرة', en: 'Basra' } },
     istanbul:  { lat: 41.008, lon: 28.978, tz: 3, n: { 'ku-ba': 'ئیستانبول', 'ku-so': 'ئیستانبوڵ', ar: 'إسطنبول', en: 'Istanbul' } },
     makkah:    { lat: 21.423, lon: 39.826, tz: 3, n: { 'ku-ba': 'مەککە', 'ku-so': 'مەککە', ar: 'مكة المكرمة', en: 'Makkah' } }
   };
+
+  // Calibration against the official Duhok (Kurdistan Awqaf) timetable: minutes to add to the astronomical result.
+  // Rows: [days since 2026-01-01, fajr, sunrise, dhuhr, asr, maghrib, isha]; offsets are interpolated between rows and held constant outside.
+  var CAL = [
+    [294,-1,0,5,5,6,7],[295,-2,0,5,5,6,7],[296,-2,-1,5,5,6,7],[297,-2,-1,5,6,5,6],[298,-2,-1,5,6,5,6],
+    [304,-2,-1,5,6,5,5],[305,-3,-1,5,6,5,5],[306,-3,-1,5,6,5,5],
+    [334,-3,-2,5,7,3,-3],[335,-3,-2,6,7,3,-3],[336,-3,-2,6,7,3,-3],
+    [365,-3,-2,6,7,2,-4],[366,-3,-2,5,7,3,-4],[367,-3,-2,6,7,2,-5],
+    [396,-2,0,5,6,4,2],[397,-2,1,6,6,4,2],[398,-2,1,6,6,3,3]
+  ];
+  function calOffsets(y, m0, d) {
+    var di = Math.round((Date.UTC(y, m0, d) - Date.UTC(2026, 0, 1)) / 86400000);
+    if (di <= CAL[0][0]) return CAL[0].slice(1);
+    var last = CAL[CAL.length - 1];
+    if (di >= last[0]) return last.slice(1);
+    for (var i = 1; i < CAL.length; i++) {
+      if (di <= CAL[i][0]) {
+        var a = CAL[i - 1], b = CAL[i], f = (di - a[0]) / (b[0] - a[0]), out = [];
+        for (var j = 1; j < 7; j++) out.push(a[j] + (b[j] - a[j]) * f);
+        return out;
+      }
+    }
+    return last.slice(1);
+  }
 
   // minutes after local midnight, for a calendar date (y, m0 = 0-11, d)
   function dayTimes(y, m0, d, city) {
@@ -38,7 +62,7 @@
       return Math.acos(c) / RAD / 15;
     }
     var asrAlt = Math.atan(1 / (1 + tan(Math.abs(city.lat - decl)))) / RAD;
-    return {
+    var r = {
       fajr: Math.floor((noon - ha(-18)) * 60),
       sunrise: Math.floor((noon - ha(-0.833)) * 60),
       dhuhr: Math.ceil(noon * 60 + 2),
@@ -46,6 +70,11 @@
       maghrib: Math.ceil((noon + ha(-0.833)) * 60 + 1),
       isha: Math.ceil((noon + ha(-17)) * 60)
     };
+    if (city.cal) {
+      var o = calOffsets(y, m0, d);
+      ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].forEach(function (k, i) { r[k] = Math.round(r[k] + o[i]); });
+    }
+    return r;
   }
 
   function hm(min) { min = Math.round(min); return ('0' + Math.floor(min / 60)).slice(-2) + ':' + ('0' + (min % 60)).slice(-2); }

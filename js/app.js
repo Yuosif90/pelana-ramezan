@@ -14,10 +14,11 @@
     user: null, profile: null, days: {}, bookmarks: [], chapters: null, cache: {},
     view: 'today', qtab: 'surahs', search: '', reader: null, sel: null, showTr: true, qsize: 28,
     ttMonth: 'ramadan', ttYear: null, dhikr: 0, tasMode: 33, tasCount: 0, nameIdx: 0,
-    dirtyProfile: false, dirtyDays: {}, offline: false, sound: true, authMode: 'login', authErr: '', authBusy: false,
-    curPrayer: 'fajr', sheet: null
+    dirtyProfile: false, dirtyDays: {}, offline: false, sound: true, authMode: 'choose', authErr: '', authBusy: false,
+    curPrayer: 'fajr', sheet: null, rmode: 'mushaf', recovering: false
   };
   try { S.sound = localStorage.getItem('rm_sound') !== '0'; } catch (e) {}
+  try { S.rmode = localStorage.getItem('rm_rmode') === 'list' ? 'list' : 'mushaf'; } catch (e) {}
   try { var sl = localStorage.getItem('rm_lang'); if (sl) I18N.setLang(sl); else I18N.setLang('ku-ba'); } catch (e) { I18N.setLang('ku-ba'); }
 
   /* ---------- small helpers ---------- */
@@ -37,6 +38,7 @@
     worship: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>',
     stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     check: '<path d="M4 12l5 5L20 6" fill="none" stroke-width="3.5"/>'
   };
   function icon(n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>'; }
@@ -206,14 +208,18 @@
   function boot() {
     try { if (window.supabase && cfg.SUPABASE_URL) sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY); } catch (e) { sb = null; }
     var wantGuest = false; try { wantGuest = localStorage.getItem('rm_guest') === '1'; } catch (e) {}
+    S.recovering = /type=recovery/.test(window.location.hash || '');
+    try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
     if (!sb) { if (wantGuest) startGuest(); else renderAuth(); return; }
     root.innerHTML = '<div class="screen"><div class="muted">' + esc(t('loading')) + '</div></div>';
     sb.auth.getSession().then(function (r) {
+      if (S.recovering && r.data && r.data.session) { S.authMode = 'recover'; S.authErr = ''; renderAuth(); return; }
+      if (S.recovering) S.recovering = false;
       if (r.data && r.data.session) return startSession(r.data.session.user);
       if (wantGuest) return startGuest();
       renderAuth();
     }).catch(function () { if (wantGuest) startGuest(); else renderAuth(); });
-    sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') { S.user = null; S.profile = null; renderAuth(); } });
+    sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') { S.user = null; S.profile = null; S.authMode = 'choose'; renderAuth(); } if (ev === 'PASSWORD_RECOVERY') { S.recovering = true; S.authMode = 'recover'; S.authErr = ''; renderAuth(); } });
   }
   function startGuest() {
     S.user = { id: 'guest', guest: true };
@@ -224,6 +230,7 @@
       I18N.setLang(S.profile.lang || lang()); try { localStorage.setItem('rm_lang', lang()); } catch (e) {}
       saveCache();
       if (!S.profile.onboarded) renderOnboard(); else renderApp();
+      checkAnnouncements();
     }).catch(function () { toast('warn', t('offline')); });
   }
   function migrateGuest() {
@@ -280,6 +287,7 @@
       I18N.setLang(S.profile.lang || lang()); try { localStorage.setItem('rm_lang', lang()); } catch (e) {}
       saveCache(); flush();
       if (!S.profile.onboarded) renderOnboard(); else renderApp();
+      checkAnnouncements(); refreshPush();
     });
   }
 
@@ -287,34 +295,95 @@
     return '<div class="langs">' + I18N.LANGS.map(function (l) { return '<button class="chip' + (l[0] === cur ? ' on' : '') + '" data-act="' + act + '" data-v="' + l[0] + '">' + esc(l[1]) + '</button>'; }).join('') + '</div>';
   }
   function renderAuth() {
-    var signup = S.authMode === 'signup';
-    root.innerHTML = '<div class="screen"><form class="card auth-card" id="authForm" novalidate>' +
-      '<div class="logo">' + MOON + '<h1>' + esc(t('appName')) + '</h1><p class="muted">' + esc(t('tagline')) + '</p></div>' +
-      langChips(lang(), 'authlang') +
-      (signup ? '<div class="field"><label for="aname">' + esc(t('name')) + '</label><input id="aname" autocomplete="name"></div>' : '') +
-      '<div class="field"><label for="aemail">' + esc(t('email')) + '</label><input id="aemail" type="email" autocomplete="email" inputmode="email"></div>' +
-      '<div class="field"><label for="apass">' + esc(t('password')) + '</label><input id="apass" type="password" autocomplete="' + (signup ? 'new-password' : 'current-password') + '"></div>' +
-      '<div class="err" id="aerr">' + esc(S.authErr) + '</div>' +
-      '<button class="btn" type="submit">' + esc(signup ? t('signup') : t('login')) + '</button>' +
-      '<button class="link" type="button" data-act="authmode">' + esc(signup ? t('haveAccount') : t('noAccount')) + '</button>' +
-      '<button class="btn ghost" type="button" data-act="guest">' + esc(t('guestBtn')) + '</button><p class="muted" style="font-size:.8125rem;text-align:center">' + esc(t('guestNote')) + '</p></form></div>';
+    var m = S.authMode, h = '<div class="screen"><form class="card auth-card" id="authForm" novalidate>' +
+      '<div class="logo">' + MOON + '<h1>' + esc(t('appName')) + '</h1><p class="muted">' + esc(t('tagline')) + '</p></div>' + langChips(lang(), 'authlang');
+    var err = '<div class="err" id="aerr">' + esc(S.authErr) + '</div>';
+    if (m === 'choose') {
+      h += '<p class="muted" style="text-align:center">' + esc(t('chooseSub')) + '</p>' +
+        '<button class="btn" type="button" data-act="guest">' + esc(t('guestBtn')) + '</button>' +
+        '<p class="muted" style="font-size:.8125rem;text-align:center;margin:-6px 0 0">' + esc(t('guestNote')) + '</p>' +
+        '<button class="btn ghost" type="button" data-act="authgo" data-v="signup">' + esc(t('signup')) + '</button>' +
+        '<button class="btn ghost" type="button" data-act="authgo" data-v="login">' + esc(t('haveAccountBtn')) + '</button>';
+    } else if (m === 'forgot') {
+      h += '<div class="field"><label for="aemail">' + esc(t('email')) + '</label><input id="aemail" type="email" autocomplete="email" inputmode="email"></div>' + err +
+        '<button class="btn" type="submit">' + esc(t('resetSend')) + '</button><button class="link" type="button" data-act="authgo" data-v="login">' + esc(t('back')) + '</button>';
+    } else if (m === 'recover') {
+      h += '<h3 class="gold" style="text-align:center">' + esc(t('setNewPw')) + '</h3>' +
+        '<div class="field"><label for="apass">' + esc(t('newPw')) + '</label><input id="apass" type="password" autocomplete="new-password"></div>' +
+        '<div class="field"><label for="apass2">' + esc(t('confirmPw')) + '</label><input id="apass2" type="password" autocomplete="new-password"></div>' + err +
+        '<button class="btn" type="submit">' + esc(t('setNewPw')) + '</button>';
+    } else {
+      var signup = m === 'signup';
+      h += (signup ? '<div class="field"><label for="aname">' + esc(t('name')) + '</label><input id="aname" autocomplete="name"></div>' : '') +
+        '<div class="field"><label for="aemail">' + esc(t('email')) + '</label><input id="aemail" type="email" autocomplete="email" inputmode="email"></div>' +
+        '<div class="field"><label for="apass">' + esc(t('password')) + '</label><input id="apass" type="password" autocomplete="' + (signup ? 'new-password' : 'current-password') + '"></div>' +
+        (signup ? '<div class="field"><label for="apass2">' + esc(t('confirmPw')) + '</label><input id="apass2" type="password" autocomplete="new-password"><p class="muted" style="font-size:.8125rem">' + esc(t('signupHint')) + '</p></div>' : '') + err +
+        '<button class="btn" type="submit">' + esc(signup ? t('signup') : t('login')) + '</button>' +
+        (signup ? '' : '<button class="link" type="button" data-act="authgo" data-v="forgot">' + esc(t('forgotPw')) + '</button>') +
+        '<button class="link" type="button" data-act="authgo" data-v="' + (signup ? 'login' : 'signup') + '">' + esc(signup ? t('haveAccount') : t('noAccount')) + '</button>' +
+        '<button class="btn ghost" type="button" data-act="guest">' + esc(t('guestBtn')) + '</button>' +
+        '<button class="link" type="button" data-act="authgo" data-v="choose">' + esc(t('back')) + '</button>';
+    }
+    root.innerHTML = h + '</form></div>';
     document.getElementById('authForm').addEventListener('submit', function (e) { e.preventDefault(); doAuth(); });
+  }
+  function fnUrl() { return String(cfg.SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/rm-api'; }
+  function callApi(body, token) {
+    var hd = { 'Content-Type': 'application/json' };
+    if (token) hd.Authorization = 'Bearer ' + token;
+    return fetch(fnUrl(), { method: 'POST', headers: hd, body: JSON.stringify(body) }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; }); });
+  }
+  function finishLogin(r, nm) {
+    S.authBusy = false;
+    if (r.error) { S.authErr = t('authErr'); renderAuth(); return; }
+    if (r.data && r.data.session) {
+      S.authErr = ''; S.profile = null; S.days = {};
+      return startSession(r.data.session.user).then(function () { if (S.profile && nm && !S.profile.display_name) { S.profile.display_name = nm; touchProfile(); } });
+    }
+    S.authErr = t('checkMail'); S.authMode = 'login'; renderAuth();
   }
   function doAuth() {
     if (S.authBusy) return;
-    var email = $('#aemail').value.trim(), pass = $('#apass').value, nm = $('#aname') ? $('#aname').value.trim() : '';
+    var m = S.authMode, email = $('#aemail') ? $('#aemail').value.trim() : '', pass = $('#apass') ? $('#apass').value : '', pass2 = $('#apass2') ? $('#apass2').value : '', nm = $('#aname') ? $('#aname').value.trim() : '';
     if (!sb) { S.authErr = t('offline'); renderAuth(); return; }
-    if (S.authMode === 'signup' && pass.length < 6) { $('#aerr').textContent = t('pwShort'); return; }
-    S.authBusy = true; $('#aerr').textContent = t('loading');
-    var job = S.authMode === 'signup'
-      ? sb.auth.signUp({ email: email, password: pass, options: { data: { name: nm }, emailRedirectTo: window.location.href.split('#')[0].split('?')[0] } })
-      : sb.auth.signInWithPassword({ email: email, password: pass });
-    job.then(function (r) {
-      S.authBusy = false;
-      if (r.error) { S.authErr = r.error.message && /confirm/i.test(r.error.message) ? t('checkMail') : t('authErr'); renderAuth(); return; }
-      if (r.data && r.data.session) { S.authErr = ''; S.profile = null; S.days = {}; return startSession(r.data.session.user).then(function () { if (S.profile && nm && !S.profile.display_name) { S.profile.display_name = nm; touchProfile(); } }); }
-      S.authErr = t('checkMail'); S.authMode = 'login'; renderAuth();
-    }).catch(function () { S.authBusy = false; S.authErr = t('offline'); renderAuth(); });
+    var errEl = $('#aerr');
+    if (m === 'forgot') {
+      if (!email) { errEl.textContent = t('emailBad'); return; }
+      S.authBusy = true; errEl.textContent = t('loading');
+      sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href.split('#')[0].split('?')[0] }).then(function (r) {
+        S.authBusy = false; S.authErr = r.error ? t('offline') : t('resetSent'); renderAuth();
+      }).catch(function () { S.authBusy = false; S.authErr = t('offline'); renderAuth(); });
+      return;
+    }
+    if (m === 'recover') {
+      if (pass.length < 6) { errEl.textContent = t('pwShort'); return; }
+      if (pass !== pass2) { errEl.textContent = t('pwMismatch'); return; }
+      S.authBusy = true; errEl.textContent = t('loading');
+      sb.auth.updateUser({ password: pass }).then(function (r) {
+        S.authBusy = false;
+        if (r.error) { S.authErr = t('authErr'); renderAuth(); return; }
+        S.recovering = false; try { history.replaceState(null, '', window.location.pathname); } catch (x) {}
+        return sb.auth.getSession().then(function (g) { if (g.data && g.data.session) return startSession(g.data.session.user); S.authMode = 'login'; renderAuth(); });
+      }).catch(function () { S.authBusy = false; S.authErr = t('offline'); renderAuth(); });
+      return;
+    }
+    if (m === 'signup') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = t('emailBad'); return; }
+      if (pass.length < 6) { errEl.textContent = t('pwShort'); return; }
+      if (pass !== pass2) { errEl.textContent = t('pwMismatch'); return; }
+      S.authBusy = true; errEl.textContent = t('loading');
+      callApi({ action: 'signup', email: email, password: pass, name: nm }).then(function (j) {
+        if (j.ok) return sb.auth.signInWithPassword({ email: email, password: pass }).then(function (r) { return finishLogin(r, nm); });
+        if (j.error === 'exists') { S.authBusy = false; S.authErr = t('emailTaken'); S.authMode = 'login'; renderAuth(); return; }
+        if (j.error === 'email') { S.authBusy = false; S.authErr = t('emailBad'); renderAuth(); return; }
+        if (j.error === 'password') { S.authBusy = false; S.authErr = t('pwShort'); renderAuth(); return; }
+        // fallback: normal sign-up (may ask for email confirmation if the project requires it)
+        return sb.auth.signUp({ email: email, password: pass, options: { data: { name: nm }, emailRedirectTo: window.location.href.split('#')[0].split('?')[0] } }).then(function (r) { return finishLogin(r, nm); });
+      }).catch(function () { S.authBusy = false; S.authErr = t('offline'); renderAuth(); });
+      return;
+    }
+    S.authBusy = true; errEl.textContent = t('loading');
+    sb.auth.signInWithPassword({ email: email, password: pass }).then(function (r) { return finishLogin(r, nm); }).catch(function () { S.authBusy = false; S.authErr = t('offline'); renderAuth(); });
   }
 
   /* ---------- onboarding ---------- */
@@ -342,7 +411,7 @@
   var NAV = [['today', 'nToday'], ['quran', 'nQuran'], ['duas', 'nDuas'], ['table', 'nTable'], ['worship', 'nWorship'], ['stats', 'nStats']];
   function renderApp() {
     setCurColor(); setTimeout(checkEvents, 1500);
-    root.innerHTML = '<div id="app"><div class="topbar"><h1>' + esc(t('appName')) + '</h1>' + (S.user && S.user.guest ? '<span class="badge warn">' + esc(t('guestBadge')) + '</span>' : '') + '<button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + icon('gear') + '</button></div>' +
+    root.innerHTML = '<div id="app"><div class="topbar"><h1>' + esc(t('appName')) + '</h1>' + (S.user && S.user.guest ? '<span class="badge warn">' + esc(t('guestBadge')) + '</span>' : '') + '<button class="iconbtn" data-act="account" aria-label="' + esc(t('myAccount')) + '">' + icon('user') + '</button><button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + icon('gear') + '</button></div>' +
       '<main id="view"></main><div id="abar"></div></div>' +
       '<nav class="bottomnav"><div class="in">' + NAV.map(function (n) { return '<button class="nb" data-act="tab" data-v="' + n[0] + '" id="nb-' + n[0] + '">' + icon(n[0]) + '<span>' + esc(t(n[1])) + '</span></button>'; }).join('') + '</div></nav>';
     renderView();
@@ -432,20 +501,30 @@
   function chapterOf(g) {
     var ch = S.chapters.chapters; for (var i = ch.length - 1; i >= 0; i--) if (g >= ch[i].off) return ch[i]; return ch[0];
   }
+  function arNum(n) { return String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.charAt(+d); }); }
   function readerHtml() {
-    var r = S.reader, c = S.chapters.chapters[r.n - 1], pos = S.profile.quran_pos, tk = trKey();
+    var r = S.reader, c = S.chapters.chapters[r.n - 1], pos = S.profile.quran_pos, tk = trKey(), mush = S.rmode === 'mushaf';
     var html = '<div class="reader-bar"><button class="btn ghost small" data-act="rback">' + esc(t('qBack')) + '</button><b style="font-family:var(--f-display)" class="gold">' + esc(c.ar) + '</b>' +
-      '<div class="row">' + (tk ? '<button class="chip' + (S.showTr ? ' on' : '') + '" data-act="toggletr">' + esc(t('qTranslation')) + '</button>' : '') + '<input id="qsz" type="range" min="22" max="44" value="' + S.qsize + '" style="width:80px" aria-label="' + esc(t('qFontSize')) + '"></div></div>';
+      '<div class="row"><button class="chip" data-act="rmode">' + esc(t(mush ? 'qModeList' : 'qModeMushaf')) + '</button>' + (tk ? '<button class="chip' + (S.showTr ? ' on' : '') + '" data-act="toggletr">' + esc(t('qTranslation')) + '</button>' : '') + '<input id="qsz" type="range" min="22" max="44" value="' + S.qsize + '" style="width:80px" aria-label="' + esc(t('qFontSize')) + '"></div></div>';
     if (!r.data) return html + '<p class="muted" style="text-align:center;padding:30px">' + esc(t('loading')) + '</p>';
     if (c.n !== 1 && c.n !== 9) html += '<div class="bism">' + esc(S.chapters.bismillah) + '</div>';
-    html += '<div id="ayahs" style="--qsize:' + S.qsize + 'px">';
-    r.data.ar.forEach(function (txt, i) {
-      var g = c.off + i, bk = S.bookmarks.some(function (b) { return b.surah === c.n && b.ayah === i + 1; });
-      html += '<div class="ayah' + (g < pos ? ' read' : '') + '" id="a' + i + '" data-i="' + i + '"><div class="txt">' + esc(txt) + '<span class="n">' + (i + 1) + '</span>' + (bk ? '<span class="bk">★</span>' : '') + '</div>' +
-        (tk && S.showTr && r.data.tr ? '<div class="tr" dir="' + (tk === 'en' ? 'ltr' : 'rtl') + '">' + esc(r.data.tr[i]) + '</div>' : '') + '</div>';
-    });
-    html += '</div>';
-    if (c.n < 114) html += '<button class="btn ghost" data-act="nextsurah">' + esc(t('qNextSurah')) + '</button>';
+    if (mush) {
+      html += '<div id="ayahs" class="mushaf" style="--qsize:' + S.qsize + 'px">';
+      r.data.ar.forEach(function (txt, i) {
+        var g = c.off + i, bk = S.bookmarks.some(function (b) { return b.surah === c.n && b.ayah === i + 1; });
+        html += '<span class="ay' + (g < pos ? ' read' : '') + (S.sel === i ? ' sel' : '') + '" id="a' + i + '" data-i="' + i + '">' + esc(txt) + '&nbsp;<span class="n">' + arNum(i + 1) + '</span>' + (bk ? '<span class="bk">★</span>' : '') + '</span> ';
+      });
+      html += '</div>';
+    } else {
+      html += '<div id="ayahs" style="--qsize:' + S.qsize + 'px">';
+      r.data.ar.forEach(function (txt, i) {
+        var g = c.off + i, bk = S.bookmarks.some(function (b) { return b.surah === c.n && b.ayah === i + 1; });
+        html += '<div class="ayah' + (g < pos ? ' read' : '') + (S.sel === i ? ' sel' : '') + '" id="a' + i + '" data-i="' + i + '"><div class="txt">' + esc(txt) + '<span class="n">' + (i + 1) + '</span>' + (bk ? '<span class="bk">★</span>' : '') + '</div>' +
+          (tk && S.showTr && r.data.tr ? '<div class="tr" dir="' + (tk === 'en' ? 'ltr' : 'rtl') + '">' + esc(r.data.tr[i]) + '</div>' : '') + '</div>';
+      });
+      html += '</div>';
+    }
+    if (c.n < 114) html += '<button class="btn ghost" data-act="nextsurah" style="margin-top:14px">' + esc(t('qNextSurah')) + '</button>';
     return html;
   }
   function openSurah(n, ayahIdx) {
@@ -456,7 +535,11 @@
     var b = $('#abar'); if (!b) return;
     if (S.sel == null || !S.reader) { b.innerHTML = ''; return; }
     var c = S.chapters.chapters[S.reader.n - 1], has = S.bookmarks.some(function (x) { return x.surah === c.n && x.ayah === S.sel + 1; });
-    b.innerHTML = '<div class="actionbar"><div class="in"><button class="btn" data-act="markread">' + esc(t('qMarkRead')) + '</button><button class="btn ghost" data-act="bookmark">' + (has ? '★ ' : '☆ ') + esc(t('qBookmark')) + '</button></div></div>';
+    var tk = trKey(), trh = '';
+    if (S.rmode === 'mushaf' && tk && S.showTr && S.reader.data && S.reader.data.tr && S.reader.data.tr[S.sel]) {
+      trh = '<div class="abtr" dir="' + (tk === 'en' ? 'ltr' : 'rtl') + '"><b class="gold">' + esc(c.ar) + ' · ' + (S.sel + 1) + '</b> ' + esc(S.reader.data.tr[S.sel]) + '</div>';
+    }
+    b.innerHTML = '<div class="actionbar"><div class="in">' + trh + '<div class="btns"><button class="btn" data-act="markread">' + esc(t('qMarkRead')) + '</button><button class="btn ghost" data-act="bookmark">' + (has ? '★ ' : '☆ ') + esc(t('qBookmark')) + '</button></div></div></div>';
   }
   function markRead() {
     var c = S.chapters.chapters[S.reader.n - 1], newPos = c.off + S.sel + 1, pos = S.profile.quran_pos;
@@ -468,7 +551,7 @@
     } else S.profile.quran_pos = newPos;
     touchProfile(); S.sel = null;
     var q = quranState(); if (q.done) toast('ok', t('qGoalDone'), true);
-    document.querySelectorAll('.ayah').forEach(function (el) { var g = c.off + (+el.getAttribute('data-i')); el.classList.toggle('read', g < S.profile.quran_pos); el.classList.remove('sel'); });
+    document.querySelectorAll('.ayah, .ay').forEach(function (el) { var g = c.off + (+el.getAttribute('data-i')); el.classList.toggle('read', g < S.profile.quran_pos); el.classList.remove('sel'); });
     showActionBar(); updateBadges();
   }
   function toggleBookmark() {
@@ -574,6 +657,151 @@
       '<div class="card"><div class="row between" style="margin-bottom:6px"><h3 class="gold">' + esc(t('stChart')) + '</h3><span class="muted" style="font-size:.8125rem">- - ' + esc(t('stWeek')) + '</span></div>' + chartSvg() + '</div>';
   }
 
+  /* ---------- my account ---------- */
+  function dataTiles() {
+    var st = streakInfo(), keys = Object.keys(S.days), sum = 0, ays = 0, tas = 0;
+    keys.forEach(function (k) { sum += S.days[k].points; ays += S.days[k].ayahs_read; tas += S.days[k].tasbih; });
+    var avg = keys.length ? Math.round(sum / keys.length) : 0, pos = S.profile.quran_pos || 0;
+    function tile(v, l) { return '<div class="tile"><b>' + v + '</b><span>' + esc(l) + '</span></div>'; }
+    return '<div class="tiles">' + tile(keys.length, t('accDays')) + tile(avg, t('stAvg')) + tile(st.cur, t('stStreak')) + tile(st.best, t('stBest')) + tile(ays, t('stTotalAyahs')) + tile(tas, t('stTasbih')) + tile(Math.round(pos / TOTAL_AYAHS * 100) + '%', t('qKhatmaProg')) + '</div>';
+  }
+  function openAccount() {
+    closeSheet();
+    var u = S.user, h = '<div class="sheet" id="sheet"><div class="in"><div class="row between"><h2 class="gold">' + esc(t('myAccount')) + '</h2><button class="iconbtn" data-act="closesheet" aria-label="' + esc(t('close')) + '">×</button></div>';
+    if (u.guest) {
+      h += '<span class="badge warn" style="justify-self:start">' + esc(t('guestBadge')) + '</span><p class="muted">' + esc(t('guestNote')) + '</p><button class="btn" data-act="guestlogin">' + esc(t('guestLogin')) + '</button>' +
+        '<div class="field"><label>' + esc(t('myData')) + '</label>' + dataTiles() + '</div></div></div>';
+    } else {
+      var since = u.created_at ? new Date(u.created_at).toLocaleDateString(loc()) : '';
+      h += '<div class="field"><label for="accname">' + esc(t('name')) + '</label><input id="accname" autocomplete="name" value="' + esc(S.profile.display_name || '') + '"></div>' +
+        '<button class="btn ghost" data-act="savename">' + esc(t('saveName')) + '</button>' +
+        '<div class="field"><label>' + esc(t('email')) + '</label><input value="' + esc(u.email || '') + '" readonly dir="ltr"></div>' +
+        (since ? '<p class="muted" style="font-size:.8125rem">' + esc(t('memberSince')) + ' ' + esc(since) + '</p>' : '') +
+        '<div class="field"><label>' + esc(t('myData')) + '</label>' + dataTiles() + '</div>' +
+        '<div class="field"><label for="accpw">' + esc(t('changePw')) + '</label><input id="accpw" type="password" autocomplete="new-password" placeholder="' + esc(t('newPw')) + '"><input id="accpw2" type="password" autocomplete="new-password" placeholder="' + esc(t('confirmPw')) + '"><div class="err" id="accerr"></div></div>' +
+        '<button class="btn ghost" data-act="changepw">' + esc(t('changePw')) + '</button>' +
+        '<button class="btn ghost" data-act="logout">' + esc(t('logout')) + '</button></div></div>';
+    }
+    document.body.insertAdjacentHTML('beforeend', h);
+  }
+  function saveName() {
+    var v = ($('#accname').value || '').trim().slice(0, 60);
+    S.profile.display_name = v; touchProfile();
+    if (sb && !S.user.guest) sb.auth.updateUser({ data: { name: v } }).then(function () {});
+    toast('ok', t('nameSaved'), true);
+  }
+  function changePw() {
+    var p1 = $('#accpw').value, p2 = $('#accpw2').value, er = $('#accerr');
+    if (p1.length < 6) { er.textContent = t('pwShort'); return; }
+    if (p1 !== p2) { er.textContent = t('pwMismatch'); return; }
+    er.textContent = t('loading');
+    sb.auth.updateUser({ password: p1 }).then(function (r) {
+      if (r.error) { er.textContent = t('offline'); return; }
+      $('#accpw').value = ''; $('#accpw2').value = ''; er.textContent = ''; toast('ok', t('pwChanged'), true);
+    }).catch(function () { er.textContent = t('offline'); });
+  }
+
+  /* ---------- share the streak as an image ---------- */
+  function buildShareImage() {
+    var st = streakInfo(), pts = dayRow(todayIso()).points, W = 1080, H = 1350, cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    var x = cv.getContext('2d'), rtl = lang() !== 'en';
+    var loads = [];
+    try { loads = [document.fonts.load('700 80px "Aref Ruqaa"', t('appName')), document.fonts.load('700 80px "Vazirmatn"', t('shDays') + '0123456789')]; } catch (e) {}
+    return Promise.all(loads).catch(function () {}).then(function () {
+      var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#12214f'); g.addColorStop(1, '#070e24');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      var rg = x.createRadialGradient(W * .85, 0, 0, W * .85, 0, 760); rg.addColorStop(0, 'rgba(224,172,74,.30)'); rg.addColorStop(1, 'rgba(224,172,74,0)');
+      x.fillStyle = rg; x.fillRect(0, 0, W, H);
+      var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+      for (var i = 0; i < 70; i++) { x.globalAlpha = .15 + rnd() * .6; x.fillStyle = '#fff'; x.beginPath(); x.arc(rnd() * W, rnd() * H, .8 + rnd() * 2.2, 0, 6.283); x.fill(); }
+      x.globalAlpha = 1;
+      // crescent (drawn on its own canvas so the cut-out stays transparent)
+      var mc = document.createElement('canvas'); mc.width = 200; mc.height = 200; var mx = mc.getContext('2d');
+      mx.fillStyle = '#e0ac4a'; mx.beginPath(); mx.arc(100, 100, 70, 0, 6.283); mx.fill();
+      mx.globalCompositeOperation = 'destination-out'; mx.beginPath(); mx.arc(134, 78, 62, 0, 6.283); mx.fill();
+      x.drawImage(mc, W / 2 - 100, 50);
+      x.textAlign = 'center'; x.direction = rtl ? 'rtl' : 'ltr';
+      x.fillStyle = '#e0ac4a'; x.font = '700 64px "Aref Ruqaa", serif'; x.fillText(t('appName'), W / 2, 300);
+      x.fillStyle = '#f3d98f'; x.font = '500 44px "Vazirmatn", sans-serif'; x.fillText(t('shTitle'), W / 2, 372);
+      // flame
+      x.save(); x.translate(W / 2 - 150, 410); x.scale(4.7, 4.7);
+      x.fillStyle = '#f0a23c'; x.fill(new Path2D('M32 4c4 10 16 16 16 32a16 16 0 0 1-32 0c0-8 4-12 8-16 0 6 3 8 6 8 0-10-2-16 2-24z'));
+      x.fillStyle = '#f3d98f'; x.fill(new Path2D('M32 28c3 6 9 8 9 17a9 9 0 0 1-18 0c0-5 3-8 5-10 0 3 2 5 4 5 0-5-1-8 0-12z'));
+      x.restore();
+      x.fillStyle = '#fff6dc'; x.font = '700 250px "Vazirmatn", sans-serif'; x.fillText(String(st.cur), W / 2, 930);
+      x.fillStyle = '#f3d98f'; x.font = '500 56px "Vazirmatn", sans-serif'; x.fillText(t('shDays'), W / 2, 1010);
+      // today's score
+      var bw = 640, bx = (W - bw) / 2, by = 1100;
+      x.fillStyle = 'rgba(255,255,255,.12)'; x.beginPath(); x.roundRect ? x.roundRect(bx, by, bw, 26, 13) : x.rect(bx, by, bw, 26); x.fill();
+      var gg = x.createLinearGradient(bx, 0, bx + bw, 0); gg.addColorStop(0, '#f1c566'); gg.addColorStop(1, '#d39a36');
+      x.fillStyle = gg; x.beginPath(); x.roundRect ? x.roundRect(bx, by, Math.max(26, bw * pts / 100), 26, 13) : x.rect(bx, by, Math.max(26, bw * pts / 100), 26); x.fill();
+      x.fillStyle = '#f4ecd8'; x.font = '500 48px "Vazirmatn", sans-serif'; x.fillText(t('shToday') + ': ' + pts + '/100', W / 2, 1200);
+      x.fillStyle = 'rgba(244,236,216,.6)'; x.font = '400 34px "Vazirmatn", sans-serif'; x.fillText(t('tagline'), W / 2, 1290);
+      return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
+    });
+  }
+  var shareBlob = null, shareUrl = null;
+  function openShare() {
+    buildShareImage().then(function (blob) {
+      if (!blob) { toast('warn', t('shFail'), true); return; }
+      shareBlob = blob; if (shareUrl) URL.revokeObjectURL(shareUrl); shareUrl = URL.createObjectURL(blob);
+      closeSheet();
+      document.body.insertAdjacentHTML('beforeend', '<div class="sheet" id="sheet"><div class="in"><div class="row between"><h2 class="gold">' + esc(t('shTitle')) + '</h2><button class="iconbtn" data-act="closesheet" aria-label="' + esc(t('close')) + '">×</button></div>' +
+        '<img class="shareimg" alt="" src="' + shareUrl + '"><div class="row" style="gap:10px"><button class="btn" style="flex:1" data-act="doshare">' + esc(t('shShare')) + '</button><button class="btn ghost" style="flex:1" data-act="saveimg">' + esc(t('shSave')) + '</button></div></div></div>');
+    }).catch(function () { toast('warn', t('shFail'), true); });
+  }
+  function saveImg() {
+    if (!shareUrl) return; var a = document.createElement('a'); a.href = shareUrl; a.download = 'streak.png'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function doShare() {
+    if (!shareBlob) return;
+    var st = streakInfo(), msg = t('stShareText', { s: st.cur, p: dayRow(todayIso()).points });
+    var file = null; try { file = new File([shareBlob], 'streak.png', { type: 'image/png' }); } catch (e) {}
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], text: msg }).catch(function () {}); return; }
+    saveImg();
+    try { if (navigator.clipboard) navigator.clipboard.writeText(msg); } catch (e) {}
+  }
+
+  /* ---------- push + messages from the admin ---------- */
+  function b64ToU8(b) { var p = '='.repeat((4 - b.length % 4) % 4), r = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')), o = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; }
+  function sendSub(sub) {
+    return sb.auth.getSession().then(function (g) { return callApi({ action: 'subscribe', sub: sub.toJSON(), lang: lang() }, g.data && g.data.session ? g.data.session.access_token : null); });
+  }
+  function enablePush() {
+    if (!sb || !cfg.VAPID_PUBLIC || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) { toast('warn', t('pushNo'), true); return; }
+    Notification.requestPermission().then(function (p) {
+      if (p !== 'granted') { toast('warn', t('pushDenied'), true); return; }
+      return navigator.serviceWorker.ready.then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (sub) { return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(cfg.VAPID_PUBLIC) }); });
+      }).then(sendSub).then(function (j) {
+        if (j && j.ok) { try { localStorage.setItem('rm_push', '1'); } catch (e) {} toast('ok', t('pushDone')); } else toast('warn', t('offline'), true);
+      });
+    }).catch(function () { toast('warn', t('pushNo'), true); });
+  }
+  function refreshPush() { // re-attach an existing subscription to the signed-in user
+    try {
+      if (!sb || localStorage.getItem('rm_push') !== '1' || !('serviceWorker' in navigator) || !('Notification' in window) || Notification.permission !== 'granted') return;
+      navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) { if (sub) return sendSub(sub); }).catch(function () {});
+    } catch (e) {}
+  }
+  function checkAnnouncements() {
+    if (!sb) return;
+    var raw = null; try { raw = localStorage.getItem('rm_ann_seen'); } catch (e) {}
+    var first = raw === null, seen = +raw || 0;
+    var q = sb.from('rm_announcements').select('id,title,body').order('id', { ascending: false }).limit(first ? 1 : 10);
+    if (!first) q = q.gt('id', seen);
+    q.then(function (r) {
+      if (r.error || !r.data) return;
+      var max = r.data.length ? Math.max.apply(null, r.data.map(function (x) { return x.id; })) : seen;
+      try { localStorage.setItem('rm_ann_seen', String(max)); } catch (e) {}
+      if (first) return;
+      r.data.slice().reverse().forEach(function (a) { notify('info', a.title + ' — ' + a.body); });
+    }).catch(function () {});
+  }
+  setInterval(function () { if (S.profile && !document.hidden) checkAnnouncements(); }, 300000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.profile) checkAnnouncements(); });
+
   /* ---------- settings sheet ---------- */
   function openSettings() {
     var p = S.profile, h = '<div class="sheet" id="sheet"><div class="in"><div class="row between"><h2 class="gold">' + esc(t('settings')) + '</h2><button class="iconbtn" data-act="closesheet" aria-label="' + esc(t('close')) + '">×</button></div>' +
@@ -664,7 +892,7 @@
   }, true);
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-act]'); if (!el) {
-      var ay = e.target.closest('.ayah'); if (ay && S.reader) { var i = +ay.getAttribute('data-i'); S.sel = S.sel === i ? null : i; document.querySelectorAll('.ayah.sel').forEach(function (x) { x.classList.remove('sel'); }); if (S.sel != null) ay.classList.add('sel'); showActionBar(); }
+      var ay = e.target.closest('.ayah, .ay'); if (ay && S.reader) { var i = +ay.getAttribute('data-i'); S.sel = S.sel === i ? null : i; document.querySelectorAll('.ayah.sel, .ay.sel').forEach(function (x) { x.classList.remove('sel'); }); if (S.sel != null) ay.classList.add('sel'); showActionBar(); }
       return;
     }
     var act = el.getAttribute('data-act'), v = el.getAttribute('data-v');
@@ -672,7 +900,13 @@
       case 'authlang': I18N.setLang(v); try { localStorage.setItem('rm_lang', v); } catch (x) {} renderAuth(); break;
       case 'guest': startGuest(); break;
       case 'guestlogin': closeSheet(); try { localStorage.setItem('rm_migrate', '1'); localStorage.removeItem('rm_guest'); } catch (x) {} S.user = null; S.profile = null; S.days = {}; S.bookmarks = []; S.authMode = 'signup'; renderAuth(); break;
-      case 'authmode': S.authMode = S.authMode === 'login' ? 'signup' : 'login'; S.authErr = ''; renderAuth(); break;
+      case 'authgo': S.authMode = v; S.authErr = ''; renderAuth(); break;
+      case 'account': openAccount(); break;
+      case 'savename': saveName(); break;
+      case 'changepw': changePw(); break;
+      case 'rmode': S.rmode = S.rmode === 'mushaf' ? 'list' : 'mushaf'; try { localStorage.setItem('rm_rmode', S.rmode); } catch (x) {} S.sel = null; renderView(); break;
+      case 'doshare': doShare(); break;
+      case 'saveimg': saveImg(); break;
       case 'oblang': I18N.setLang(v); S.profile.lang = v; try { localStorage.setItem('rm_lang', v); } catch (x) {} drawOnboard(); break;
       case 'obk': ob.k = clamp(ob.k + (+v), 1, 10); drawOnboard(); break;
       case 'obmode': ob.mode = v; drawOnboard(); break;
@@ -686,9 +920,9 @@
       case 'setk': var kv = clamp(S.profile.khatma_count + (+v), 1, 10); S.profile.khatma_count = kv; $('#setkv').textContent = kv; break;
       case 'setmode': S.profile.khatma_mode = v; el.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === el); }); break;
       case 'sound': S.sound = !S.sound; try { localStorage.setItem('rm_sound', S.sound ? '1' : '0'); } catch (x) {} el.classList.toggle('on', S.sound); unlockAudio(); chime('prayer'); break;
-      case 'notifon': unlockAudio(); try { if ('Notification' in window) Notification.requestPermission(); } catch (x) {} chime('prayer'); toast('ok', t('saved')); break;
+      case 'notifon': unlockAudio(); chime('prayer'); enablePush(); break;
       case 'savesettings': S.profile.city = $('#setcity').value; S.profile.ramadan_start = $('#setstart').value || S.profile.ramadan_start; touchProfile(); closeSheet(); renderApp(); break;
-      case 'logout': flush().then(function () { return sb.auth.signOut(); }).then(function () { closeSheet(); S.user = null; S.profile = null; S.days = {}; renderAuth(); }); break;
+      case 'logout': flush().then(function () { return sb.auth.signOut(); }).then(function () { closeSheet(); S.user = null; S.profile = null; S.days = {}; S.authMode = 'choose'; renderAuth(); }); break;
       case 'task': mutateDay(todayIso(), function (r) { r.tasks[v] = !r.tasks[v]; }); renderViewKeepScroll(); break;
       case 'goauto': if (v === 'quran') { S.view = 'quran'; renderView(); window.scrollTo(0, 0); } else { S.view = 'worship'; renderView(); window.scrollTo(0, 0); } break;
       case 'continue': var pos = S.profile.quran_pos >= TOTAL_AYAHS ? 0 : S.profile.quran_pos, ch = chapterOf(pos); openSurah(ch.n, Math.min(pos - ch.off, ch.v - 1)); break;
@@ -706,9 +940,7 @@
       case 'dhikr': S.dhikr = +v; S.tasCount = 0; renderView(); break;
       case 'tasreset': S.tasCount = 0; renderView(); break;
       case 'namenav': var sl = $('#nameslider'); if (sl) { var dir = document.documentElement.dir === 'rtl' ? -1 : 1, step = (+v) * -1; S.nameIdx = clamp(S.nameIdx + (step), 0, 98); sl.scrollTo({ left: sl.clientWidth * S.nameIdx * dir, behavior: 'smooth' }); } break;
-      case 'share':
-        var st = streakInfo(), msg = t('stShareText', { s: st.cur, p: dayRow(todayIso()).points });
-        if (navigator.share) navigator.share({ text: msg }).catch(function () {}); else { try { navigator.clipboard.writeText(msg).then(function () { toast('ok', t('dCopied'), true); }); } catch (x) {} }
+      case 'share': openShare();
         break;
     }
   });
