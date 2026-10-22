@@ -11,15 +11,14 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { height: 100%; }
-body {
-  margin: 0; min-height: 100%; background: var(--night); color: var(--ink);
-  font: 400 16px/1.8 var(--f-body); overflow-x: hidden;
+html {
+  min-height: 100%; background-color: var(--night);
+  background-image: radial-gradient(900px 480px at 85% -5%, rgba(224,172,74,.16), transparent 60%), radial-gradient(800px 520px at 0% 20%, rgba(80,104,200,.2), transparent 62%);
+  background-repeat: no-repeat; -webkit-text-size-adjust: 100%;
 }
-body::before { /* night sky glow */
-  content: ""; position: fixed; inset: 0; z-index: -2;
-  background: radial-gradient(900px 480px at 85% -5%, rgba(224,172,74,.16), transparent 60%),
-              radial-gradient(800px 520px at 0% 20%, rgba(80,104,200,.2), transparent 62%), var(--night);
+body {
+  margin: 0; min-height: 100vh; min-height: 100dvh; background: transparent; color: var(--ink);
+  font: 400 16px/1.8 var(--f-body); overflow-x: hidden;
 }
 #stars { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
 .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: .2; animation: tw 4s ease-in-out infinite; }
@@ -36,7 +35,7 @@ p { margin: 0; }
 
 /* screens */
 .screen { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
-.card { background: linear-gradient(180deg, rgba(21,35,75,.88), rgba(10,18,42,.9)); border: 1px solid var(--line); border-radius: 20px; padding: 20px; backdrop-filter: blur(6px); }
+.card { background: linear-gradient(180deg, rgba(21,35,75,.88), rgba(10,18,42,.9)); border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
 .auth-card { width: min(440px, 100%); display: grid; gap: 14px; }
 .logo { display: grid; justify-items: center; text-align: center; gap: 2px; }
 .logo svg { width: 84px; height: 84px; }
@@ -60,14 +59,14 @@ input[type=email], input[type=password] { direction: ltr; text-align: start; }
 .chip.on { background: var(--gold); color: #1a1303; border-color: var(--gold); font-weight: 700; }
 
 /* app shell */
-#app { max-width: 760px; margin-inline: auto; padding: 0 14px 96px; }
+#app { max-width: 760px; margin-inline: auto; padding: 0 14px 96px; background: transparent; }
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 2px; background: linear-gradient(180deg, var(--night) 70%, transparent); }
 .topbar h1 { font-size: 1.25rem; color: var(--gold); }
 .iconbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; color: var(--gold-soft); }
 .iconbtn svg { width: 20px; height: 20px; }
 .bottomnav {
   position: fixed; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: center;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); background: rgba(5,10,27,.94); border-top: 1px solid var(--line); backdrop-filter: blur(8px);
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); background: rgba(5,10,27,.94); border-top: 1px solid var(--line);
 }
 .bottomnav .in { display: flex; width: min(760px, 100%); gap: 2px; }
 .nb { flex: 1; min-width: 0; background: none; border: 0; display: grid; justify-items: center; gap: 0; padding: 4px 0; color: var(--muted); font-size: .6875rem; line-height: 1.5; border-radius: 12px; position: relative; }
@@ -132,7 +131,7 @@ input[type=email], input[type=password] { direction: ltr; text-align: start; }
 .surah .nm { flex: 1; min-width: 0; line-height: 1.5; }
 .surah .ar { font-family: var(--f-quran); font-size: 1.375rem; color: var(--gold-soft); }
 .surah.cur { border-color: var(--gold); background: var(--wash); }
-.reader-bar { position: sticky; top: 62px; z-index: 15; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: rgba(5,10,27,.95); border: 1px solid var(--line); border-radius: 16px; padding: 8px 12px; }
+.reader-bar { flex-wrap: wrap; position: sticky; top: 62px; z-index: 15; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: rgba(5,10,27,.95); border: 1px solid var(--line); border-radius: 16px; padding: 8px 12px; }
 .bism { text-align: center; font-family: var(--f-quran); font-size: 2rem; color: var(--gold-soft); padding: 8px 0; line-height: 2.2; }
 .ayah { border-radius: 16px; padding: 12px 14px; border: 1px solid transparent; transition: background .2s; scroll-margin-top: 130px; }
 .ayah.sel { background: var(--wash); border-color: var(--gold); }
@@ -142,8 +141,18 @@ input[type=email], input[type=password] { direction: ltr; text-align: start; }
 .ayah .n { display: inline-grid; place-items: center; min-width: 34px; height: 34px; margin-inline: 6px; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold-soft); font: 500 .8125rem var(--f-body); vertical-align: middle; }
 .ayah .bk { color: var(--gold); margin-inline-start: 4px; }
 .actionbar { position: fixed; inset-inline: 0; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); z-index: 25; display: flex; justify-content: center; padding: 0 12px; }
-.actionbar .in { display: flex; gap: 8px; width: min(736px, 100%); background: var(--panel2); border: 1px solid var(--gold); border-radius: 18px; padding: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.actionbar .in { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow: auto; width: min(736px, 100%); background: var(--panel2); border: 1px solid var(--gold); border-radius: 18px; padding: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.actionbar .btns { display: flex; gap: 8px; }
 .actionbar .btn { flex: 1; }
+.abtr { font-size: .9688rem; line-height: 1.9; color: var(--ink); padding: 2px 6px; }
+/* mushaf: verses flow side by side like a printed page */
+.mushaf { direction: rtl; text-align: justify; text-justify: inter-word; font-family: var(--f-quran); font-size: var(--qsize, 28px); line-height: 2.7; padding: 18px 16px; margin-top: 10px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(180deg, rgba(21,35,75,.55), rgba(10,18,42,.6)); }
+.mushaf .ay { cursor: pointer; border-radius: 8px; transition: background .2s; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.mushaf .ay.sel { background: var(--wash); box-shadow: 0 0 0 3px var(--wash); }
+.mushaf .ay.read { color: rgba(244,236,216,.6); }
+.mushaf .n { display: inline-grid; place-items: center; min-width: 1.35em; height: 1.35em; padding: 0 .12em; margin-inline: .1em; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold-soft); font: 500 .5em var(--f-body); vertical-align: middle; line-height: 1; }
+.mushaf .bk { color: var(--gold); font-size: .6em; }
+.shareimg { width: 100%; max-height: 52vh; object-fit: contain; border-radius: 16px; border: 1px solid var(--line); background: var(--deep); }
 .seg { display: flex; background: var(--deep); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 3px; }
 .seg button { flex: 1; border: 0; background: none; color: var(--muted); border-radius: 999px; min-height: 36px; padding: 0 12px; }
 .seg button.on { background: var(--gold); color: #1a1303; font-weight: 700; }

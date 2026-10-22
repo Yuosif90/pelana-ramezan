@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ckb" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="dark">
+<title>بەڕێڤەبەر - پلانا هەیڤا رەمەزانێ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Vazirmatn:wght@400;500;700&display=swap">
+<style>
+:root{--night:#070e24;--panel:#0f1a3a;--panel2:#15234b;--gold:#e0ac4a;--gold-soft:#f3d98f;--ink:#f4ecd8;--muted:#a9b2cd;--line:rgba(224,172,74,.25);--ok:#3fc79a;--bad:#ef5a5a;color-scheme:dark}
+*{box-sizing:border-box}
+html{background:var(--night);min-height:100%}
+body{margin:0;min-height:100vh;background:var(--night);color:var(--ink);font:400 16px/1.7 Vazirmatn,Tahoma,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px}
+h1,h2{font-family:"Aref Ruqaa",serif;color:var(--gold);margin:0 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:16px}
+input,textarea,select{width:100%;background:#0a1330;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit}
+textarea{min-height:90px;resize:vertical}
+input[type=email],input[type=password]{direction:ltr;text-align:start}
+label{display:block;color:var(--muted);font-size:.875rem;margin:10px 0 4px}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:10px 18px;font-weight:700;background:linear-gradient(180deg,#f1c566,#d39a36);color:#1a1303}
+button.ghost{background:transparent;color:var(--gold-soft);border:1px solid var(--line);font-weight:500}
+button.small{padding:4px 12px;font-size:.8125rem}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.between{justify-content:space-between}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.stat b{display:block;font-size:1.6rem;color:var(--gold-soft)}
+.stat span{color:var(--muted);font-size:.8125rem}
+.tw{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:8px 10px;border-bottom:1px solid rgba(224,172,74,.12);text-align:start;white-space:nowrap;font-size:.875rem}
+th{color:var(--gold-soft);background:var(--panel2);position:sticky;top:0}
+td.ltr{direction:ltr;text-align:start}
+.msg{margin:8px 0;min-height:1.6em}.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+.muted{color:var(--muted)}
+.hist{display:grid;gap:8px}
+.hist div{background:var(--panel2);border-radius:12px;padding:8px 12px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row between"><h1>بەڕێڤەبەرێ «پلانا هەیڤا رەمەزانێ»</h1><button class="ghost small hidden" id="logout">دەرکەفتن</button></div>
+
+  <div class="card" id="loginBox">
+    <h2>چوونەژوور</h2>
+    <p class="muted">بۆ ڤێ لاپەڕێ دڤێت ب ئیمەیلا بەڕێڤەبەری ڤە بچی ژوور.</p>
+    <label for="em">ئیمەیل</label><input id="em" type="email" autocomplete="email">
+    <label for="pw">پاسۆرد</label><input id="pw" type="password" autocomplete="current-password">
+    <div class="msg bad" id="loginMsg"></div>
+    <button id="loginBtn">چوونەژوور</button>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div class="stats">
+      <div class="stat"><b id="sUsers">0</b><span>بەکارهێنەرێن تۆمارکری</span></div>
+      <div class="stat"><b id="sActive">0</b><span>چالاک ل ٧ ڕۆژێن دوماهیێ</span></div>
+      <div class="stat"><b id="sSubs">0</b><span>ئامیرێن ئاگەهداریێ وەردگرن</span></div>
+      <div class="stat"><b id="sGuest">0</b><span>ژ وان میڤان</span></div>
+    </div>
+
+    <div class="card">
+      <h2>ناردنا ئاگەهداریێ</h2>
+      <label for="tTarget">بۆ کێ؟</label>
+      <select id="tTarget"><option value="">هەمی بەکارهێنەران (و میڤانێن ئاگەهداری چالاککری)</option></select>
+      <label for="tTitle">سەردێر</label><input id="tTitle" maxlength="100" placeholder="نموونە: بیرهێنانەک">
+      <label for="tBody">دەقێ پەیامێ</label><textarea id="tBody" maxlength="500"></textarea>
+      <div class="msg" id="sendMsg"></div>
+      <button id="sendBtn">ناردن</button>
+      <p class="muted" style="font-size:.8125rem">ئەگەر ئەپ ڤەکریا، پەیام وەک نیشانێ ناڤ ئەپی دیار دبیت. ئەگەر ئاگەهداری چالاککری بیت، ل دەرڤەی ئەپی ژی دگەهیتێ. ل ئایفۆن و ئایپادێ دڤێت سایت ل Home Screen بهێتە زێدەکرن.</p>
+    </div>
+
+    <div class="card">
+      <div class="row between"><h2>بەکارهێنەرێن تۆمارکری</h2><input id="q" placeholder="گەڕان ب ناڤ یان ئیمەیلێ" style="max-width:280px"></div>
+      <div class="tw" style="margin-top:10px"><table><thead><tr><th>ناڤ</th><th>ئیمەیل</th><th>تۆمارکرن</th><th>دوماهیک چوونەژوور</th><th>ڕۆژ</th><th>تێکڕایا خالان</th><th>ئایەت</th><th>تەسبیح</th><th>ئاگەهداری</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+
+    <div class="card"><h2>پەیامێن هنارتی</h2><div class="hist" id="hist"></div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  var cfg = window.RM_CONFIG, sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
+  var API = cfg.SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/rm-api';
+  var $ = function (id) { return document.getElementById(id); };
+  var users = [];
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function api(body) {
+    return sb.auth.getSession().then(function (g) {
+      var tok = g.data && g.data.session ? g.data.session.access_token : '';
+      return fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) }).then(function (r) { return r.json(); });
+    });
+  }
+  function fmt(d) { return d ? new Date(d).toLocaleString('ckb') : '-'; }
+  function render() {
+    var q = $('q').value.trim().toLowerCase();
+    $('rows').innerHTML = users.filter(function (u) { return !q || (u.email || '').toLowerCase().indexOf(q) >= 0 || (u.name || '').toLowerCase().indexOf(q) >= 0; }).map(function (u) {
+      return '<tr><td>' + esc(u.name || '-') + '</td><td class="ltr">' + esc(u.email) + '</td><td>' + fmt(u.created_at) + '</td><td>' + fmt(u.last_sign_in_at) + '</td><td>' + u.days + '</td><td>' + u.avg + '</td><td>' + u.ayahs + '</td><td>' + u.tasbih + '</td><td>' + (u.push ? '✓' : '-') + '</td><td><button class="ghost small" data-to="' + esc(u.id) + '">پەیام</button></td></tr>';
+    }).join('') || '<tr><td colspan="10" class="muted">چ بەکارهێنەر نینن</td></tr>';
+  }
+  function load() {
+    api({ action: 'admin_users' }).then(function (j) {
+      if (j.error === 'forbidden') { $('loginMsg').textContent = 'ئەڤ هەژمارە بەڕێڤەبەر نینە.'; sb.auth.signOut(); show(false); return; }
+      if (j.error) { $('loginMsg').textContent = 'خەلەتیەک چێبوو، دووبارە هەول بدە.'; return; }
+      users = j.users || [];
+      var wk = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      $('sUsers').textContent = users.length;
+      $('sActive').textContent = users.filter(function (u) { return u.last_day >= wk; }).length;
+      $('sSubs').textContent = j.totalSubs || 0; $('sGuest').textContent = j.guestSubs || 0;
+      $('tTarget').innerHTML = '<option value="">هەمی بەکارهێنەران (و میڤانێن ئاگەهداری چالاککری)</option>' + users.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc((u.name ? u.name + ' - ' : '') + u.email) + '</option>'; }).join('');
+      render(); show(true); hist();
+    }).catch(function () { $('loginMsg').textContent = 'ئینتەرنێت نینە.'; });
+  }
+  function hist() {
+    api({ action: 'admin_history' }).then(function (j) {
+      $('hist').innerHTML = (j.items || []).map(function (a) { return '<div><b>' + esc(a.title) + '</b> <span class="muted">· ' + fmt(a.created_at) + (a.target_user ? ' · بۆ ئێک کەسی' : ' · بۆ هەمیان') + '</span><br>' + esc(a.body) + '</div>'; }).join('') || '<span class="muted">هێشتا چ پەیام نەهاتینە ناردن.</span>';
+    });
+  }
+  function show(on) { $('loginBox').classList.toggle('hidden', on); $('panel').classList.toggle('hidden', !on); $('logout').classList.toggle('hidden', !on); }
+  $('loginBtn').onclick = function () {
+    $('loginMsg').textContent = '...';
+    sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value }).then(function (r) {
+      if (r.error) { $('loginMsg').textContent = 'ئیمەیل یان پاسۆرد ڕاست نینە.'; return; }
+      $('loginMsg').textContent = ''; load();
+    });
+  };
+  $('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginBtn').click(); });
+  $('logout').onclick = function () { sb.auth.signOut().then(function () { show(false); }); };
+  $('q').addEventListener('input', render);
+  $('rows').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-to]'); if (!b) return;
+    $('tTarget').value = b.getAttribute('data-to'); $('tTitle').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  $('sendBtn').onclick = function () {
+    var title = $('tTitle').value.trim(), body = $('tBody').value.trim(), m = $('sendMsg');
+    if (!title || !body) { m.className = 'msg bad'; m.textContent = 'سەردێر و دەقی پەیامێ پێدڤینە.'; return; }
+    if (!confirm('ئەڤ پەیامە بهێتە ناردن؟')) return;
+    m.className = 'msg'; m.textContent = '...'; $('sendBtn').disabled = true;
+    api({ action: 'admin_send', title: title, body: body, target: $('tTarget').value || null }).then(function (j) {
+      $('sendBtn').disabled = false;
+      if (j.ok) { m.className = 'msg ok'; m.textContent = 'هاتە ناردن. گەهشتە ' + j.sent + ' ئامیران' + (j.failed ? ' (' + j.failed + ' نەگەهشتن)' : '') + '.' + (j.pushError ? ' ئاگەهداریا دەرڤەی ئەپی نەچوو، بەلێ پەیام د ناڤ ئەپی دا دیار دبیت.' : ''); $('tTitle').value = ''; $('tBody').value = ''; hist(); }
+      else { m.className = 'msg bad'; m.textContent = 'نەهاتە ناردن.'; }
+    }).catch(function () { $('sendBtn').disabled = false; m.className = 'msg bad'; m.textContent = 'ئینتەرنێت نینە.'; });
+  };
+  sb.auth.getSession().then(function (g) { if (g.data && g.data.session) load(); });
+})();
+</script>
+</body>
+</html>
