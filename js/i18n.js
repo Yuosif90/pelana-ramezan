@@ -189,7 +189,17 @@
     pushDone: { 'ku-ba': 'ئاگەهداری چالاک بوو', 'ku-so': 'ئاگادارکردنەوە چالاک بوو', ar: 'تم تفعيل الإشعارات', en: 'Notifications enabled' },
     pushDenied: { 'ku-ba': 'ئاگەهداری ل وێبگەرێ هاتیە قەدەغەکرن، ژ ڕێکخستنێن وێبگەرێ ڤەکە', 'ku-so': 'ئاگادارکردنەوە لە وێبگەڕ قەدەغە کراوە، لە ڕێکخستنەکانی وێبگەڕ بیکەرەوە', ar: 'الإشعارات محظورة في المتصفح، فعّلها من إعداداته', en: 'Notifications are blocked in the browser; allow them in its settings' },
     pushNo: { 'ku-ba': 'ئەڤ ئامیرە پشتگیریا ئاگەهداریان ناکەت. ل ئایفۆن و ئایپادێ سایتی ل Home Screen زێدە بکە و ژ ڤێرێ ڤەکە.', 'ku-so': 'ئەم ئامێرە پشتگیری ئاگادارکردنەوە ناکات. لە ئایفۆن و ئایپاد سایتەکە لە Home Screen زیاد بکە و لەوێوە بیکەرەوە.', ar: 'هذا الجهاز لا يدعم الإشعارات. على آيفون وآيباد أضف الموقع إلى الشاشة الرئيسية وافتحه منها.', en: 'This device does not support notifications. On iPhone/iPad add the site to your Home Screen and open it from there.' },
-    adminMsg: { 'ku-ba': 'پەیامەک ژ بەڕێڤەبەری', 'ku-so': 'پەیامێک لە بەڕێوەبەر', ar: 'رسالة من الإدارة', en: 'Message from the admin' }
+    adminMsg: { 'ku-ba': 'پەیامەک ژ بەڕێڤەبەری', 'ku-so': 'پەیامێک لە بەڕێوەبەر', ar: 'رسالة من الإدارة', en: 'Message from the admin' },
+    qHint: { 'ku-ba': 'لێ بدە ل سەر ئایەتەکێ دا مانا و دوگمەیێن «تا ڤێرێ مە خواند» و نیشانکرنێ ببینی. بۆ مەزنکرن و بچووککرنا نڤێسینێ دوگمەیێن + و − بکار بینە.', 'ku-so': 'لەسەر ئایەتێک دابگرە بۆ بینینی واتا و دوگمەکانی «تا ئێرە خوێندم» و نیشانکردن. بۆ گەورە و بچووککردنی نووسین دوگمەکانی + و − بەکاربهێنە.', ar: 'اضغط على أي آية لترى معناها وأزرار «قرأت إلى هنا» والإشارة. استخدم + و − لتكبير الخط وتصغيره.', en: 'Tap any verse to see its meaning and the "I read up to here" and bookmark buttons. Use + and − to make the text bigger or smaller.' },
+    qHintOk: { 'ku-ba': 'تێگەهشتم', 'ku-so': 'تێگەیشتم', ar: 'فهمت', en: 'Got it' },
+    qTheme: { 'ku-ba': 'ڕەنگ', 'ku-so': 'ڕەنگ', ar: 'الألوان', en: 'Colours' },
+    thNight: { 'ku-ba': 'شەڤ', 'ku-so': 'شەو', ar: 'ليلي', en: 'Night' },
+    thBlack: { 'ku-ba': 'ڕەش', 'ku-so': 'ڕەش', ar: 'أسود', en: 'Black' },
+    thWhite: { 'ku-ba': 'سپی', 'ku-so': 'سپی', ar: 'أبيض', en: 'White' },
+    thPaper: { 'ku-ba': 'کاغەز', 'ku-so': 'کاغەز', ar: 'ورقي', en: 'Paper' },
+    thBg: { 'ku-ba': 'ڕەنگێ پشتێ', 'ku-so': 'ڕەنگی پاشبنەما', ar: 'لون الخلفية', en: 'Background colour' },
+    thFg: { 'ku-ba': 'ڕەنگێ نڤێسینێ', 'ku-so': 'ڕەنگی نووسین', ar: 'لون الخط', en: 'Text colour' },
+    googleBtn: { 'ku-ba': 'ب Google بچۆ ژوور', 'ku-so': 'بە Google بچۆ ژوورەوە', ar: 'المتابعة عبر Google', en: 'Continue with Google' }
   };
 
   var lang = 'ku-ba';

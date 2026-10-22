@@ -15,10 +15,26 @@
     view: 'today', qtab: 'surahs', search: '', reader: null, sel: null, showTr: true, qsize: 28,
     ttMonth: 'ramadan', ttYear: null, dhikr: 0, tasMode: 33, tasCount: 0, nameIdx: 0,
     dirtyProfile: false, dirtyDays: {}, offline: false, sound: true, authMode: 'choose', authErr: '', authBusy: false,
-    curPrayer: 'fajr', sheet: null, rmode: 'mushaf', recovering: false
+    curPrayer: 'fajr', sheet: null, rmode: 'mushaf', recovering: false, rtheme: { t: 'night', bg: '#0c1736', fg: '#f4ecd8' }, rpanel: false, googleOn: false
   };
   try { S.sound = localStorage.getItem('rm_sound') !== '0'; } catch (e) {}
   try { S.rmode = localStorage.getItem('rm_rmode') === 'list' ? 'list' : 'mushaf'; } catch (e) {}
+  try { var rt = JSON.parse(localStorage.getItem('rm_rtheme') || 'null'); if (rt && rt.t) S.rtheme = rt; var qs = +localStorage.getItem('rm_qsize'); if (qs >= 20 && qs <= 48) S.qsize = qs; } catch (e) {}
+  var THEMES = {
+    night: { bg: '#0c1736', fg: '#f4ecd8', gold: '#f3d98f', num: '#e0ac4a', muted: '#a9b2cd' },
+    black: { bg: '#000000', fg: '#e9e9e9', gold: '#f3d98f', num: '#e0ac4a', muted: '#9a9a9a' },
+    white: { bg: '#ffffff', fg: '#1b1b1b', gold: '#8a5a00', num: '#a8741a', muted: '#555555' },
+    paper: { bg: '#f3e9d2', fg: '#2c2117', gold: '#8a5a00', num: '#a8741a', muted: '#5d4b38' }
+  };
+  function lum(hex) { var n = parseInt(String(hex).replace('#', ''), 16) || 0, r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
+  function themeVars() {
+    var th = S.rtheme, base = THEMES[th.t];
+    var bg = base ? base.bg : th.bg, fg = base ? base.fg : th.fg, light = lum(bg) > 0.6;
+    var gold = base ? base.gold : (light ? '#8a5a00' : '#f3d98f'), num = base ? base.num : (light ? '#a8741a' : '#e0ac4a'), muted = base ? base.muted : fg;
+    return '--rbg:' + bg + ';--rfg:' + fg + ';--rgold:' + gold + ';--rnum:' + num + ';--rmuted:' + muted + ';';
+  }
+  function saveTheme() { try { localStorage.setItem('rm_rtheme', JSON.stringify(S.rtheme)); } catch (e) {} }
+  function setQsize(v) { S.qsize = clamp(v, 20, 48); try { localStorage.setItem('rm_qsize', String(S.qsize)); } catch (e) {} var el = $('#ayahs'); if (el) el.style.setProperty('--qsize', S.qsize + 'px'); }
   try { var sl = localStorage.getItem('rm_lang'); if (sl) I18N.setLang(sl); else I18N.setLang('ku-ba'); } catch (e) { I18N.setLang('ku-ba'); }
 
   /* ---------- small helpers ---------- */
@@ -209,6 +225,7 @@
     try { if (window.supabase && cfg.SUPABASE_URL) sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY); } catch (e) { sb = null; }
     var wantGuest = false; try { wantGuest = localStorage.getItem('rm_guest') === '1'; } catch (e) {}
     S.recovering = /type=recovery/.test(window.location.hash || '');
+    checkGoogle();
     try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
     if (!sb) { if (wantGuest) startGuest(); else renderAuth(); return; }
     root.innerHTML = '<div class="screen"><div class="muted">' + esc(t('loading')) + '</div></div>';
@@ -268,7 +285,7 @@
       if (r.error) throw r.error;
       if (r.data) { if (!S.dirtyProfile) S.profile = r.data; }
       else if (!S.profile) {
-        S.profile = { display_name: (user.user_metadata && user.user_metadata.name) || '', lang: lang(), city: 'duhok', ramadan_start: '2027-02-08', khatma_count: 1, khatma_mode: 'daily', quran_pos: 0, onboarded: false };
+        S.profile = { display_name: (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || '', lang: lang(), city: 'duhok', ramadan_start: '2027-02-08', khatma_count: 1, khatma_mode: 'daily', quran_pos: 0, onboarded: false };
         S.dirtyProfile = true;
       }
       return sb.from('rm_days').select('*').eq('user_id', user.id);
@@ -301,7 +318,7 @@
     if (m === 'choose') {
       h += '<p class="muted" style="text-align:center">' + esc(t('chooseSub')) + '</p>' +
         '<button class="btn" type="button" data-act="guest">' + esc(t('guestBtn')) + '</button>' +
-        '<p class="muted" style="font-size:.8125rem;text-align:center;margin:-6px 0 0">' + esc(t('guestNote')) + '</p>' +
+        '<p class="muted" style="font-size:.8125rem;text-align:center;margin:-6px 0 0">' + esc(t('guestNote')) + '</p>' + googleBtn() +
         '<button class="btn ghost" type="button" data-act="authgo" data-v="signup">' + esc(t('signup')) + '</button>' +
         '<button class="btn ghost" type="button" data-act="authgo" data-v="login">' + esc(t('haveAccountBtn')) + '</button>';
     } else if (m === 'forgot') {
@@ -318,7 +335,7 @@
         '<div class="field"><label for="aemail">' + esc(t('email')) + '</label><input id="aemail" type="email" autocomplete="email" inputmode="email"></div>' +
         '<div class="field"><label for="apass">' + esc(t('password')) + '</label><input id="apass" type="password" autocomplete="' + (signup ? 'new-password' : 'current-password') + '"></div>' +
         (signup ? '<div class="field"><label for="apass2">' + esc(t('confirmPw')) + '</label><input id="apass2" type="password" autocomplete="new-password"><p class="muted" style="font-size:.8125rem">' + esc(t('signupHint')) + '</p></div>' : '') + err +
-        '<button class="btn" type="submit">' + esc(signup ? t('signup') : t('login')) + '</button>' +
+        '<button class="btn" type="submit">' + esc(signup ? t('signup') : t('login')) + '</button>' + googleBtn() +
         (signup ? '' : '<button class="link" type="button" data-act="authgo" data-v="forgot">' + esc(t('forgotPw')) + '</button>') +
         '<button class="link" type="button" data-act="authgo" data-v="' + (signup ? 'login' : 'signup') + '">' + esc(signup ? t('haveAccount') : t('noAccount')) + '</button>' +
         '<button class="btn ghost" type="button" data-act="guest">' + esc(t('guestBtn')) + '</button>' +
@@ -326,6 +343,20 @@
     }
     root.innerHTML = h + '</form></div>';
     document.getElementById('authForm').addEventListener('submit', function (e) { e.preventDefault(); doAuth(); });
+  }
+  var GICON = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.9 2.3-8.5 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
+  function googleBtn() { return S.googleOn ? '<button class="btn google" type="button" data-act="google">' + GICON + esc(t('googleBtn')) + '</button>' : ''; }
+  function signInGoogle() {
+    if (!sb) { toast('warn', t('offline'), true); return; }
+    sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }).then(function (r) { if (r && r.error) toast('warn', t('offline'), true); });
+  }
+  function checkGoogle() {
+    try {
+      fetch(String(cfg.SUPABASE_URL || '').replace(/\/$/, '') + '/auth/v1/settings', { headers: { apikey: cfg.SUPABASE_KEY } }).then(function (r) { return r.json(); }).then(function (j) {
+        var on = !!(j && j.external && j.external.google);
+        if (on !== S.googleOn) { S.googleOn = on; if (!S.user && !S.authBusy && $('#authForm') && !$('#apass2') && !$('#aname')) renderAuth(); }
+      }).catch(function () {});
+    } catch (e) {}
   }
   function fnUrl() { return String(cfg.SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/rm-api'; }
   function callApi(body, token) {
@@ -504,9 +535,17 @@
   function arNum(n) { return String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.charAt(+d); }); }
   function readerHtml() {
     var r = S.reader, c = S.chapters.chapters[r.n - 1], pos = S.profile.quran_pos, tk = trKey(), mush = S.rmode === 'mushaf';
-    var html = '<div class="reader-bar"><button class="btn ghost small" data-act="rback">' + esc(t('qBack')) + '</button><b style="font-family:var(--f-display)" class="gold">' + esc(c.ar) + '</b>' +
-      '<div class="row"><button class="chip" data-act="rmode">' + esc(t(mush ? 'qModeList' : 'qModeMushaf')) + '</button>' + (tk ? '<button class="chip' + (S.showTr ? ' on' : '') + '" data-act="toggletr">' + esc(t('qTranslation')) + '</button>' : '') + '<input id="qsz" type="range" min="22" max="44" value="' + S.qsize + '" style="width:80px" aria-label="' + esc(t('qFontSize')) + '"></div></div>';
+    var html = '<div class="reader-bar"><div class="row between"><button class="btn ghost small" data-act="rback">' + esc(t('qBack')) + '</button><b style="font-family:var(--f-display)" class="gold">' + esc(c.ar) + '</b></div>' +
+      '<div class="tools"><button class="chip' + (S.rpanel ? ' on' : '') + '" data-act="rpanel">' + esc(t('qTheme')) + '</button><button class="chip" data-act="rmode">' + esc(t(mush ? 'qModeList' : 'qModeMushaf')) + '</button>' + (tk ? '<button class="chip' + (S.showTr ? ' on' : '') + '" data-act="toggletr">' + esc(t('qTranslation')) + '</button>' : '') + '<span class="grow"></span><button class="szbtn" data-act="qsz" data-v="-2" aria-label="-">A−</button><button class="szbtn" data-act="qsz" data-v="2" aria-label="+">A+</button></div></div>';
+    var qh = false; try { qh = localStorage.getItem('rm_qhint') === '1'; } catch (e) {}
+    if (!qh) html += '<div class="qhint"><span>' + esc(t('qHint')) + '</span><button class="btn small" data-act="hintok">' + esc(t('qHintOk')) + '</button></div>';
+    if (S.rpanel) {
+      var th = S.rtheme, base = THEMES[th.t];
+      html += '<div class="rpanel"><div class="swatches">' + ['night', 'black', 'white', 'paper'].map(function (k) { return '<button class="sw' + (th.t === k ? ' on' : '') + '" data-act="rtheme" data-v="' + k + '" style="background:' + THEMES[k].bg + ';color:' + THEMES[k].fg + '">' + esc(t({ night: 'thNight', black: 'thBlack', white: 'thWhite', paper: 'thPaper' }[k])) + '</button>'; }).join('') + '</div>' +
+        '<div class="colors"><label>' + esc(t('thBg')) + '<input type="color" id="rbg" value="' + (base ? base.bg : th.bg) + '"></label><label>' + esc(t('thFg')) + '<input type="color" id="rfg" value="' + (base ? base.fg : th.fg) + '"></label></div></div>';
+    }
     if (!r.data) return html + '<p class="muted" style="text-align:center;padding:30px">' + esc(t('loading')) + '</p>';
+    html += '<div class="rd" style="' + themeVars() + '">';
     if (c.n !== 1 && c.n !== 9) html += '<div class="bism">' + esc(S.chapters.bismillah) + '</div>';
     if (mush) {
       html += '<div id="ayahs" class="mushaf" style="--qsize:' + S.qsize + 'px">';
@@ -524,6 +563,7 @@
       });
       html += '</div>';
     }
+    html += '</div>';
     if (c.n < 114) html += '<button class="btn ghost" data-act="nextsurah" style="margin-top:14px">' + esc(t('qNextSurah')) + '</button>';
     return html;
   }
@@ -875,7 +915,12 @@
   var SHARE_COUNT = 0;
   root.addEventListener('input', function (e) {
     if (e.target.id === 'qsearch') { S.search = e.target.value; var pos = e.target.selectionStart; renderView(); var el = $('#qsearch'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (x) {} } }
-    if (e.target.id === 'qsz') { S.qsize = +e.target.value; var a = $('#ayahs'); if (a) a.style.setProperty('--qsize', S.qsize + 'px'); }
+    if (e.target.id === 'rbg' || e.target.id === 'rfg') {
+      var cur = THEMES[S.rtheme.t], bgv = $('#rbg').value, fgv = $('#rfg').value;
+      S.rtheme = { t: 'custom', bg: bgv, fg: fgv }; saveTheme();
+      var rd = $('.rd'); if (rd) rd.setAttribute('style', themeVars());
+      document.querySelectorAll('.sw.on').forEach(function (x) { x.classList.remove('on'); });
+    }
   });
   root.addEventListener('change', function (e) {
     var id = e.target.id;
@@ -906,6 +951,11 @@
       case 'changepw': changePw(); break;
       case 'rmode': S.rmode = S.rmode === 'mushaf' ? 'list' : 'mushaf'; try { localStorage.setItem('rm_rmode', S.rmode); } catch (x) {} S.sel = null; renderView(); break;
       case 'doshare': doShare(); break;
+      case 'qsz': setQsize(S.qsize + (+v)); break;
+      case 'hintok': try { localStorage.setItem('rm_qhint', '1'); } catch (x) {} renderView(); break;
+      case 'rpanel': S.rpanel = !S.rpanel; renderView(); break;
+      case 'rtheme': S.rtheme = { t: v, bg: THEMES[v].bg, fg: THEMES[v].fg }; saveTheme(); renderView(); break;
+      case 'google': signInGoogle(); break;
       case 'saveimg': saveImg(); break;
       case 'oblang': I18N.setLang(v); S.profile.lang = v; try { localStorage.setItem('rm_lang', v); } catch (x) {} drawOnboard(); break;
       case 'obk': ob.k = clamp(ob.k + (+v), 1, 10); drawOnboard(); break;
