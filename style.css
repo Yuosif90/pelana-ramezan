@@ -131,7 +131,7 @@ input[type=email], input[type=password] { direction: ltr; text-align: start; }
 .surah .nm { flex: 1; min-width: 0; line-height: 1.5; }
 .surah .ar { font-family: var(--f-quran); font-size: 1.375rem; color: var(--gold-soft); }
 .surah.cur { border-color: var(--gold); background: var(--wash); }
-.reader-bar { flex-wrap: wrap; position: sticky; top: 62px; z-index: 15; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: rgba(5,10,27,.95); border: 1px solid var(--line); border-radius: 16px; padding: 8px 12px; }
+.reader-bar { position: sticky; top: 62px; z-index: 15; display: grid; gap: 6px; background: rgba(5,10,27,.95); border: 1px solid var(--line); border-radius: 16px; padding: 8px 12px; }
 .bism { text-align: center; font-family: var(--f-quran); font-size: 2rem; color: var(--gold-soft); padding: 8px 0; line-height: 2.2; }
 .ayah { border-radius: 16px; padding: 12px 14px; border: 1px solid transparent; transition: background .2s; scroll-margin-top: 130px; }
 .ayah.sel { background: var(--wash); border-color: var(--gold); }
@@ -146,11 +146,13 @@ input[type=email], input[type=password] { direction: ltr; text-align: start; }
 .actionbar .btn { flex: 1; }
 .abtr { font-size: .9688rem; line-height: 1.9; color: var(--ink); padding: 2px 6px; }
 /* mushaf: verses flow side by side like a printed page */
-.mushaf { direction: rtl; text-align: justify; text-justify: inter-word; font-family: var(--f-quran); font-size: var(--qsize, 28px); line-height: 2.7; padding: 18px 16px; margin-top: 10px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(180deg, rgba(21,35,75,.55), rgba(10,18,42,.6)); }
+.rd { --rbg: #0c1736; --rfg: #f4ecd8; --rgold: #f3d98f; --rnum: #e0ac4a; --rmuted: #a9b2cd; background: var(--rbg); color: var(--rfg); border-radius: 20px; padding: 6px 8px 10px; margin-top: 10px; border: 1px solid var(--line); }
+.rd .bism { color: var(--rgold); }
+.mushaf { direction: rtl; text-align: justify; text-justify: inter-word; font-family: var(--f-quran); font-size: var(--qsize, 28px); line-height: 2.7; padding: 18px 16px; }
 .mushaf .ay { cursor: pointer; border-radius: 8px; transition: background .2s; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.mushaf .ay.sel { background: var(--wash); box-shadow: 0 0 0 3px var(--wash); }
-.mushaf .ay.read { color: rgba(244,236,216,.6); }
-.mushaf .n { display: inline-grid; place-items: center; min-width: 1.35em; height: 1.35em; padding: 0 .12em; margin-inline: .1em; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold-soft); font: 500 .5em var(--f-body); vertical-align: middle; line-height: 1; }
+.mushaf .ay.sel { background: rgba(224,172,74,.30); box-shadow: 0 0 0 3px rgba(224,172,74,.30); }
+.mushaf .ay.read { opacity: .6; }
+.mushaf .n { display: inline-grid; place-items: center; min-width: 1.35em; height: 1.35em; padding: 0 .12em; margin-inline: .1em; border-radius: 50%; border: 1px solid var(--rnum); color: var(--rnum); font: 500 .5em var(--f-body); vertical-align: middle; line-height: 1; }
 .mushaf .bk { color: var(--gold); font-size: .6em; }
 .shareimg { width: 100%; max-height: 52vh; object-fit: contain; border-radius: 16px; border: 1px solid var(--line); background: var(--deep); }
 .seg { display: flex; background: var(--deep); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 3px; }
@@ -229,3 +231,22 @@ tr.today td.curcol { background: color-mix(in srgb, var(--cur) 50%, var(--deep))
 
 .tiles .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
 @media (min-width: 640px) { .tiles .tile:last-child:nth-child(odd) { grid-column: auto; } }
+
+.rd .ayah .tr { color: var(--rmuted); }
+.rd .ayah.sel { background: rgba(224,172,74,.22); border-color: var(--gold); }
+.rd .ayah .n { border-color: var(--rnum); color: var(--rnum); }
+.rpanel { display: grid; gap: 10px; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.sw { min-width: 64px; min-height: 40px; border-radius: 12px; border: 2px solid var(--line); padding: 4px 10px; font-size: .8125rem; font-weight: 500; }
+.sw.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--wash); }
+.colors { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.colors label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .875rem; }
+.colors input[type=color] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: none; }
+.szbtn { min-width: 40px; min-height: 36px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--gold-soft); font-weight: 700; padding: 0 10px; }
+.qhint { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--gold); border-radius: 16px; background: var(--wash); font-size: .9375rem; line-height: 1.8; }
+.btn.google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border: 0; }
+.btn.google svg { width: 20px; height: 20px; }
+.reader-bar .tools { display: flex; gap: 6px; align-items: center; }
+.reader-bar .tools .grow { flex: 1; }
+.reader-bar .chip { white-space: nowrap; padding: 2px 10px; min-height: 34px; }
+.reader-bar .szbtn { min-width: 38px; min-height: 34px; }
