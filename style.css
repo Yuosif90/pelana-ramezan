@@ -250,3 +250,67 @@ tr.today td.curcol { background: color-mix(in srgb, var(--cur) 50%, var(--deep))
 .reader-bar .tools .grow { flex: 1; }
 .reader-bar .chip { white-space: nowrap; padding: 2px 10px; min-height: 34px; }
 .reader-bar .szbtn { min-width: 38px; min-height: 34px; }
+
+/* ===== update 3 ===== */
+/* greeting no longer collides with the lanterns */
+.lanterns { transform: scale(.72); transform-origin: top center; opacity: .85; z-index: 0; }
+.hero-top { position: relative; z-index: 1; padding-inline-end: 64px; }
+.hero-top > div { min-width: 0; }
+.hero h2 { overflow-wrap: anywhere; line-height: 1.35; }
+/* intro / help */
+.intro { gap: 12px; }
+.introico svg { width: 56px; height: 56px; color: var(--gold); display: block; margin: 0 auto; }
+.introico:empty { display: none; }
+.intro-b { line-height: 2; text-align: center; color: var(--ink); min-height: 7em; }
+.dots { display: flex; gap: 6px; justify-content: center; }
+.dots i { width: 8px; height: 8px; border-radius: 999px; background: var(--line); transition: all .25s; }
+.dots i.on { width: 24px; background: var(--gold); }
+.helpitem { display: grid; gap: 4px; }
+.helpitem p { line-height: 1.9; }
+/* duas as a list */
+.duas { display: grid; gap: 10px; }
+.duarow { padding: 0; overflow: hidden; }
+.duahead { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; color: inherit; padding: 14px 16px; text-align: start; min-height: 58px; }
+.duahead h3 { flex: 1; color: var(--gold-soft); font-size: 1.125rem; }
+.duahead .dn { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold-soft); font-size: .8125rem; }
+.duahead .chev svg { width: 22px; height: 22px; color: var(--muted); transition: transform .2s; display: block; }
+.duarow.open .chev svg { transform: rotate(180deg); }
+.duabody { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); }
+.duabody .ar { font-family: var(--f-quran); font-size: 1.625rem; line-height: 2.3; direction: rtl; }
+/* Quran reader: full width pages with page separators */
+.rd { margin-inline: -14px; border-radius: 0; border-inline: 0; padding: 4px 2px 10px; }
+.surhead { display: grid; place-items: center; padding: 16px 0 2px; }
+.surhead span { font-family: var(--f-display); font-size: 2.1rem; line-height: 1.6; color: var(--rgold); padding: 4px 38px; border-block: 1px solid var(--rnum); }
+.mushaf { padding: 8px 6px; line-height: 2.35; }
+.mushaf .pg { text-align: justify; text-justify: inter-word; }
+.mushaf .n { min-width: 1.7em; height: 1.7em; font-size: .52em; border: 1px solid var(--rnum); box-shadow: 0 0 0 2px var(--rbg), 0 0 0 3px var(--rnum); margin-inline: .35em; }
+.pgsep { display: flex; align-items: center; gap: 10px; margin: 18px 6px 12px; }
+.pgsep::before, .pgsep::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--rnum), transparent); }
+.pgsep span { font: 500 1.0625rem var(--f-body); padding: 2px 20px; border: 1px solid var(--rnum); border-radius: 999px; color: var(--rfg); background: var(--rbg); }
+/* chat */
+.chatbtn { position: relative; }
+.chatbtn .dot { position: absolute; top: 6px; inset-inline-end: 6px; width: 11px; height: 11px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 2px var(--panel); }
+.chatbtn .dot[hidden] { display: none; }
+textarea { width: 100%; background: var(--deep); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; color: var(--ink); font: inherit; resize: vertical; min-height: 70px; }
+.chatbox { display: grid; gap: 8px; }
+.sug { display: flex; gap: 6px; flex-wrap: wrap; }
+.sug:empty { display: none; }
+.threads { display: grid; gap: 12px; margin: 12px 0; }
+.cthread { display: grid; gap: 8px; }
+.cmsg { display: grid; gap: 4px; }
+.cmsg .ch { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cname { background: none; border: 0; color: var(--gold-soft); font-weight: 700; padding: 0; text-align: start; }
+.cmsg .ct { font-size: .75rem; margin-inline-start: auto; }
+.cmsg .cb { line-height: 1.85; overflow-wrap: anywhere; }
+.cmsg.adm .cb { color: var(--gold-soft); }
+.cact { display: flex; gap: 16px; }
+.cact .link { font-size: .8125rem; }
+.link.bad { color: #ffb4b4; }
+.creps { margin-top: 6px; margin-inline-start: 10px; padding-inline-start: 12px; border-inline-start: 2px solid var(--line); display: grid; gap: 12px; }
+.mention { color: var(--info); font-weight: 700; }
+.toast .btn.small { margin-inline-start: 8px; min-height: 30px; padding: 2px 12px; }
+.topbar { gap: 6px; }
+.topbar h1 { flex: 1; min-width: 0; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .iconbtn { width: 38px; height: 38px; flex: none; }
+.topbar .iconbtn svg { width: 19px; height: 19px; }
+.topbar .badge { flex: none; }
