@@ -12,12 +12,13 @@
 
   var S = {
     user: null, profile: null, days: {}, bookmarks: [], chapters: null, cache: {},
-    view: 'today', qtab: 'surahs', search: '', reader: null, sel: null, showTr: true, qsize: 28,
+    view: 'today', qtab: 'surahs', search: '', reader: null, sel: null, showTr: true, qsize: 32,
     ttMonth: 'ramadan', ttYear: null, dhikr: 0, tasMode: 33, tasCount: 0, nameIdx: 0,
     dirtyProfile: false, dirtyDays: {}, offline: false, sound: true, authMode: 'choose', authErr: '', authBusy: false,
-    curPrayer: 'fajr', sheet: null, rmode: 'mushaf', recovering: false, rtheme: { t: 'night', bg: '#0c1736', fg: '#f4ecd8' }, rpanel: false, googleOn: false
+    curPrayer: 'fajr', duaOpen: null, duaSearch: '', adhan: true, introStep: 0, chatNew: false, sheet: null, rmode: 'mushaf', recovering: false, rtheme: { t: 'night', bg: '#0c1736', fg: '#f4ecd8' }, rpanel: false, googleOn: false
   };
   try { S.sound = localStorage.getItem('rm_sound') !== '0'; } catch (e) {}
+  try { S.adhan = localStorage.getItem('rm_adhan') !== '0'; } catch (e) {}
   try { S.rmode = localStorage.getItem('rm_rmode') === 'list' ? 'list' : 'mushaf'; } catch (e) {}
   try { var rt = JSON.parse(localStorage.getItem('rm_rtheme') || 'null'); if (rt && rt.t) S.rtheme = rt; var qs = +localStorage.getItem('rm_qsize'); if (qs >= 20 && qs <= 48) S.qsize = qs; } catch (e) {}
   var THEMES = {
@@ -40,6 +41,8 @@
   /* ---------- small helpers ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(sel, el) { return (el || document).querySelector(sel); }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function lang() { return I18N.getLang(); }
   function isKu() { return lang().indexOf('ku') === 0; }
   function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
@@ -55,6 +58,9 @@
     stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.5-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11.5h7M8.5 14.5h4"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8M12 17h.01"/>',
+    chev: '<path d="M6 9l6 6 6-6"/>',
     check: '<path d="M4 12l5 5L20 6" fill="none" stroke-width="3.5"/>'
   };
   function icon(n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>'; }
@@ -86,6 +92,21 @@
       });
     } catch (e) {}
   }
+  var adhanEl = null;
+  function primeAdhan() {
+    try {
+      if (adhanEl) return;
+      adhanEl = new Audio(); adhanEl.preload = 'auto';
+      adhanEl.src = 'audio/adhan.wav';
+      adhanEl.muted = true; var pr = adhanEl.play(); if (pr && pr.then) pr.then(function () { adhanEl.pause(); adhanEl.currentTime = 0; adhanEl.muted = false; }).catch(function () { adhanEl.muted = false; });
+    } catch (e) {}
+  }
+  document.addEventListener('pointerdown', primeAdhan, { once: true, passive: true });
+  function playAdhan() {
+    if (!S.sound || !S.adhan) return;
+    try { primeAdhan(); adhanEl.muted = false; adhanEl.currentTime = 0; var pr = adhanEl.play(); if (pr && pr.catch) pr.catch(function () { chime('prayer'); }); } catch (e) { chime('prayer'); }
+  }
+  function stopAdhan() { try { if (adhanEl) { adhanEl.pause(); adhanEl.currentTime = 0; } } catch (e) {} }
   function toast(type, msg, silent) {
     var box = document.getElementById('toasts');
     var el = document.createElement('div'); el.className = 'toast ' + type;
@@ -95,10 +116,18 @@
     el.querySelector('.x').onclick = kill;
     setTimeout(kill, type === 'bad' || type === 'warn' ? 14000 : 8000);
     if (!silent) chime(type);
+    return el;
   }
   function notify(type, msg) {
-    toast(type, msg);
+    var el = toast(type, msg);
     try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification(t('appName'), { body: msg }); } catch (e) {}
+    return el;
+  }
+  var lastAnn = 0;
+  function announcePrayer(msg) { // toast + adhan once per prayer, whether it comes from the timer or from a push
+    if (Date.now() - lastAnn < 120000) return; lastAnn = Date.now();
+    var el = notify('prayer', msg);
+    if (S.sound && S.adhan) { playAdhan(); if (el) el.insertAdjacentHTML('beforeend', '<button class="btn small" data-act="adhanstop">' + esc(t('adhanStop')) + '</button>'); }
   }
   function confetti() {
     var cols = ['#e0ac4a', '#f3d98f', '#3fc79a', '#6b8cff', '#ef5a5a', '#8a6be0'];
@@ -149,17 +178,23 @@
     return cur;
   }
   function setCurColor() { S.curPrayer = curPrayerName(); document.body.style.setProperty('--cur', 'var(--c-' + S.curPrayer + ')'); }
+  function dayActive(r) {
+    if (!r) return false;
+    if (r.points > 0 || r.ayahs_read > 0 || r.tasbih > 0) return true;
+    for (var k in (r.tasks || {})) if (r.tasks[k]) return true;
+    return false;
+  }
+  // The streak counts every day with any action, in every month. Missing a whole day sends it back to zero.
   function streakInfo() {
-    var iso = todayIso(), best = 0, run = 0, keys = Object.keys(S.days).sort();
-    var prev = null;
-    keys.forEach(function (k) {
-      if (S.days[k].points >= 100) { run = (prev && isoMs(k) - isoMs(prev) === 86400000) ? run + 1 : 1; prev = k; if (run > best) best = run; } else { run = 0; prev = null; }
+    var iso = todayIso(), best = 0, run = 0, prev = null;
+    Object.keys(S.days).filter(function (k) { return dayActive(S.days[k]); }).sort().forEach(function (k) {
+      run = (prev && isoMs(k) - isoMs(prev) === 86400000) ? run + 1 : 1; prev = k; if (run > best) best = run;
     });
     var cur = 0, ms = isoMs(iso);
-    if (!(S.days[iso] && S.days[iso].points >= 100)) ms -= 86400000;
+    if (!dayActive(S.days[iso])) ms -= 86400000;
     while (true) {
       var p = new Date(ms), key = P.iso(p.getUTCFullYear(), p.getUTCMonth(), p.getUTCDate());
-      if (S.days[key] && S.days[key].points >= 100) { cur++; ms -= 86400000; } else break;
+      if (dayActive(S.days[key])) { cur++; ms -= 86400000; } else break;
     }
     return { cur: cur, best: Math.max(best, cur) };
   }
@@ -221,7 +256,55 @@
   }
 
   /* ---------- boot / auth ---------- */
+  /* ---------- intro (first visit) and help ---------- */
+  var INTRO = [['i1t', 'i1b', 'moon'], ['i2t', 'i2b', 'today'], ['i3t', 'i3b', 'quran'], ['i4t', 'i4b', 'gear']];
+  var introDone = null;
+  function introNeeded() {
+    var h = window.location.hash || '';
+    return lsGet('rm_intro') !== '1' && lsGet('rm_lang') === null && lsGet('rm_guest') !== '1' && !/access_token|type=|error/.test(h);
+  }
+  function renderIntro(done) {
+    introDone = done || introDone;
+    var st = S.introStep, it = INTRO[st], last = st === INTRO.length - 1;
+    root.innerHTML = '<div class="screen"><div class="card auth-card intro"><div class="logo">' + MOON + '</div>' + langChips(lang(), 'introlang') +
+      '<div class="introico">' + (it[2] === 'moon' ? '' : icon(it[2])) + '</div><h2 class="gold" style="text-align:center">' + esc(t(it[0])) + '</h2><p class="intro-b">' + esc(t(it[1])) + '</p>' +
+      '<div class="dots">' + INTRO.map(function (x, i) { return '<i class="' + (i === st ? 'on' : '') + '"></i>'; }).join('') + '</div>' +
+      '<button class="btn" data-act="intronext">' + esc(last ? t('introStart') : t('introNext')) + '</button>' + (last ? '' : '<button class="link" data-act="introskip">' + esc(t('introSkip')) + '</button>') + '</div></div>';
+  }
+  function finishIntro() { lsSet('rm_intro', '1'); lsSet('rm_lang', lang()); var d = introDone; introDone = null; if (d) d(); }
+  function openHelp() {
+    closeSheet();
+    document.body.insertAdjacentHTML('beforeend', '<div class="sheet" id="sheet"><div class="in"><div class="row between"><h2 class="gold">' + esc(t('helpBtn')) + '</h2><button class="iconbtn" data-act="closesheet" aria-label="' + esc(t('close')) + '">×</button></div>' +
+      INTRO.map(function (it) { return '<div class="card helpitem"><h3 class="gold">' + esc(t(it[0])) + '</h3><p>' + esc(t(it[1])) + '</p></div>'; }).join('') + '</div></div>');
+  }
+  function maybeWelcome() {
+    if (!S.user || !S.profile || !S.profile.onboarded || $('#sheet')) return;
+    var key = 'rm_welcomed_' + S.user.id;
+    if (lsGet(key)) return;
+    lsSet(key, '1');
+    var recent = false;
+    if (S.user.guest) { var fs = +lsGet('rm_first_seen') || 0; recent = fs > 0 && Date.now() - fs < 2 * 86400000; }
+    else recent = S.user.created_at && Date.now() - new Date(S.user.created_at).getTime() < 2 * 86400000;
+    if (!recent) return;
+    document.body.insertAdjacentHTML('beforeend', '<div class="sheet" id="sheet"><div class="in" style="text-align:center">' + MOON +
+      '<h2 class="gold">' + esc(t('welcomeTitle')) + (S.profile.display_name ? '، ' + esc(S.profile.display_name) : '') + '</h2><p>' + esc(t('welcomeBody')) + '</p>' +
+      '<button class="btn" data-act="closesheet">' + esc(t('welcomeBtn')) + '</button></div></div>');
+    confetti();
+  }
+
   function boot() {
+    if (lsGet('rm_first_seen') === null) lsSet('rm_first_seen', introNeeded() ? String(Date.now()) : '0');
+    try {
+      if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) {
+        var d = e.data || {};
+        if (d.type === 'adhan') announcePrayer(d.body || d.title || '');
+        if (d.type === 'tas_plus') tasPlus(d.n || 1);
+      });
+    } catch (e) {}
+    if (introNeeded()) { renderIntro(bootMain); return; }
+    bootMain();
+  }
+  function bootMain() {
     try { if (window.supabase && cfg.SUPABASE_URL) sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY); } catch (e) { sb = null; }
     var wantGuest = false; try { wantGuest = localStorage.getItem('rm_guest') === '1'; } catch (e) {}
     S.recovering = /type=recovery/.test(window.location.hash || '');
@@ -441,8 +524,8 @@
   /* ---------- app shell ---------- */
   var NAV = [['today', 'nToday'], ['quran', 'nQuran'], ['duas', 'nDuas'], ['table', 'nTable'], ['worship', 'nWorship'], ['stats', 'nStats']];
   function renderApp() {
-    setCurColor(); setTimeout(checkEvents, 1500);
-    root.innerHTML = '<div id="app"><div class="topbar"><h1>' + esc(t('appName')) + '</h1>' + (S.user && S.user.guest ? '<span class="badge warn">' + esc(t('guestBadge')) + '</span>' : '') + '<button class="iconbtn" data-act="account" aria-label="' + esc(t('myAccount')) + '">' + icon('user') + '</button><button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + icon('gear') + '</button></div>' +
+    setCurColor(); setTimeout(checkEvents, 1500); setTimeout(maybeWelcome, 700);
+    root.innerHTML = '<div id="app"><div class="topbar"><h1>' + esc(t('appName')) + '</h1>' + (S.user && S.user.guest ? '<span class="badge warn">' + esc(t('guestBadge')) + '</span>' : '') + '<button class="iconbtn" data-act="help" aria-label="' + esc(t('helpBtn')) + '">' + icon('help') + '</button><button class="iconbtn chatbtn" data-act="chat" aria-label="' + esc(t('chatTitle')) + '">' + icon('chat') + '<i class="dot" id="chatdot"' + (S.chatNew ? '' : ' hidden') + '></i></button><button class="iconbtn" data-act="account" aria-label="' + esc(t('myAccount')) + '">' + icon('user') + '</button><button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + icon('gear') + '</button></div>' +
       '<main id="view"></main><div id="abar"></div></div>' +
       '<nav class="bottomnav"><div class="in">' + NAV.map(function (n) { return '<button class="nb" data-act="tab" data-v="' + n[0] + '" id="nb-' + n[0] + '">' + icon(n[0]) + '<span>' + esc(t(n[1])) + '</span></button>'; }).join('') + '</div></nav>';
     renderView();
@@ -450,7 +533,8 @@
   function renderView() {
     var v = $('#view'); if (!v) return;
     NAV.forEach(function (n) { var b = $('#nb-' + n[0]); if (b) b.classList.toggle('on', n[0] === S.view); });
-    var fn = { today: viewToday, quran: viewQuran, duas: viewDuas, table: viewTable, worship: viewWorship, stats: viewStats }[S.view];
+    if (S.view !== 'chat' && CH.timer) { clearInterval(CH.timer); CH.timer = null; }
+    var fn = { today: viewToday, quran: viewQuran, duas: viewDuas, table: viewTable, worship: viewWorship, stats: viewStats, chat: viewChat }[S.view];
     v.innerHTML = '<div class="view">' + fn() + '</div>';
     updateBadges(); afterRender();
   }
@@ -546,14 +630,17 @@
     }
     if (!r.data) return html + '<p class="muted" style="text-align:center;padding:30px">' + esc(t('loading')) + '</p>';
     html += '<div class="rd" style="' + themeVars() + '">';
+    html += '<div class="surhead"><span>سُورَةُ ' + esc(c.ar) + '</span></div>';
     if (c.n !== 1 && c.n !== 9) html += '<div class="bism">' + esc(S.chapters.bismillah) + '</div>';
     if (mush) {
-      html += '<div id="ayahs" class="mushaf" style="--qsize:' + S.qsize + 'px">';
+      html += '<div id="ayahs" class="mushaf" style="--qsize:' + S.qsize + 'px"><div class="pg">';
+      var curPg = pageOf(c.off);
       r.data.ar.forEach(function (txt, i) {
         var g = c.off + i, bk = S.bookmarks.some(function (b) { return b.surah === c.n && b.ayah === i + 1; });
+        if (i > 0 && PAGE_START[g]) { html += '</div><div class="pgsep"><span>' + curPg + '</span></div><div class="pg">'; curPg = PAGE_START[g]; }
         html += '<span class="ay' + (g < pos ? ' read' : '') + (S.sel === i ? ' sel' : '') + '" id="a' + i + '" data-i="' + i + '">' + esc(txt) + '&nbsp;<span class="n">' + arNum(i + 1) + '</span>' + (bk ? '<span class="bk">★</span>' : '') + '</span> ';
       });
-      html += '</div>';
+      html += '</div><div class="pgsep"><span>' + curPg + '</span></div></div>';
     } else {
       html += '<div id="ayahs" style="--qsize:' + S.qsize + 'px">';
       r.data.ar.forEach(function (txt, i) {
@@ -567,6 +654,9 @@
     if (c.n < 114) html += '<button class="btn ghost" data-act="nextsurah" style="margin-top:14px">' + esc(t('qNextSurah')) + '</button>';
     return html;
   }
+  var QP = window.QPAGES || [], PAGE_START = {};
+  QP.forEach(function (g, i) { PAGE_START[g] = i + 1; });
+  function pageOf(g) { var lo = 0, hi = QP.length - 1; while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (QP[mid] <= g) lo = mid; else hi = mid - 1; } return lo + 1; }
   function openSurah(n, ayahIdx) {
     S.reader = { n: n, data: null, scrollTo: ayahIdx }; S.sel = null; S.view = 'quran'; renderView(); window.scrollTo(0, 0);
     loadSurah(n).then(function (d) { if (S.reader && S.reader.n === n) { S.reader.data = d; renderView(); } }).catch(function () { toast('warn', t('offline')); });
@@ -606,11 +696,16 @@
 
   /* ---------- Duas ---------- */
   function viewDuas() {
-    var l = lang();
-    return '<div class="sec-title">' + esc(t('dTitle')) + '</div><div class="grid2">' + C.DUAS.map(function (d, i) {
-      var m = l === 'ar' ? '' : d.m[l === 'ku-so' ? 'ku-so' : l === 'en' ? 'en' : 'ku-ba'];
-      return '<article class="card dua" style="display:grid;gap:8px"><h3>' + esc(d.title[l]) + '</h3><p class="ar" id="dua' + i + '">' + esc(d.ar) + '</p>' + (m ? '<p class="muted">' + esc(m) + '</p>' : '') + '<button class="btn ghost small" style="justify-self:start" data-act="copy" data-v="' + i + '">' + esc(t('dCopy')) + '</button></article>';
-    }).join('') + '</div>';
+    var l = lang(), q = S.duaSearch.trim().toLowerCase();
+    var rows = C.DUAS.map(function (d, i) { return { d: d, i: i }; }).filter(function (x) {
+      return !q || (x.d.title[l] || '').toLowerCase().indexOf(q) >= 0 || x.d.title.en.toLowerCase().indexOf(q) >= 0 || x.d.ar.indexOf(q) >= 0;
+    });
+    return '<div class="sec-title">' + esc(t('dTitle')) + '</div><input id="dsearch" type="search" placeholder="' + esc(t('dSearch')) + '" value="' + esc(S.duaSearch) + '"><p class="muted" style="font-size:.8125rem;margin:6px 2px">' + esc(t('dTapHint')) + '</p>' +
+      '<div class="duas">' + (rows.map(function (x) {
+        var d = x.d, i = x.i, open = S.duaOpen === i, m = l === 'ar' ? '' : d.m[l === 'ku-so' ? 'ku-so' : l === 'en' ? 'en' : 'ku-ba'];
+        return '<article class="card duarow' + (open ? ' open' : '') + '"><button class="duahead" data-act="duaopen" data-v="' + i + '" aria-expanded="' + open + '"><span class="dn">' + (i + 1) + '</span><h3>' + esc(d.title[l]) + '</h3><span class="chev">' + icon('chev') + '</span></button>' +
+          (open ? '<div class="duabody"><p class="ar" id="dua' + i + '">' + esc(d.ar) + '</p>' + (m ? '<p class="muted">' + esc(m) + '</p>' : '') + '<button class="btn ghost small" style="justify-self:start" data-act="copy" data-v="' + i + '">' + esc(t('dCopy')) + '</button></div>' : '') + '</article>';
+      }).join('') || '<p class="muted" style="text-align:center;padding:20px">' + esc(t('dNone')) + '</p>') + '</div>';
   }
 
   /* ---------- Timetable ---------- */
@@ -648,6 +743,25 @@
       '<div class="navrow"><button class="btn ghost small" data-act="namenav" data-v="1">' + esc(t('wPrev')) + '</button><span class="muted num" id="nameidx">' + (S.nameIdx + 1) + ' / 99</span><button class="btn ghost small" data-act="namenav" data-v="-1">' + esc(t('wNext')) + '</button></div>' +
       groupHtml('taat') + groupHtml('qiyam');
   }
+  function swSend(msg) {
+    try { if ('serviceWorker' in navigator) navigator.serviceWorker.ready.then(function (reg) { if (reg.active) reg.active.postMessage(msg); }); } catch (e) {}
+  }
+  function tasNotify(done) { // persistent notification with a +1 button; it stays until the round is complete
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      var tgt = S.tasMode, cyc = S.tasCount % tgt;
+      swSend({ type: done ? 'tas_done' : 'tas', count: cyc, target: tgt, name: C.DHIKR[S.dhikr].ar, title: t('tasNotifTitle'), doneText: t('tasNotifDone', { n: tgt }), plus: t('tasPlus') });
+    } catch (e) {}
+  }
+  function tasPlus(n) { // taps made from the notification while the app was closed or in the background
+    for (var i = 0; i < n; i++) {
+      S.tasCount++;
+      var row = mutateDay(todayIso(), function (r) { r.tasbih++; });
+      var tgt = S.tasMode, cyc = S.tasCount % tgt;
+      if (cyc === 0) chime('prayer');
+      var a = $('#tascount'); if (a) { a.textContent = cyc; var b = $('#tasrounds'); if (b) b.textContent = Math.floor(S.tasCount / tgt); var c2 = $('#tasday'); if (c2) c2.textContent = row.tasbih; }
+    }
+  }
   function tasbihTap(ev) {
     if (ev && ev.preventDefault) ev.preventDefault();
     S.tasCount++;
@@ -661,11 +775,12 @@
     if (cyc === 0) { chime('prayer'); try { navigator.vibrate && navigator.vibrate([40, 30, 40]); } catch (e) {} } else { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} }
     var row = mutateDay(todayIso(), function (r) { r.tasbih++; });
     var td = $('#tasday'); if (td) td.textContent = row.tasbih;
+    tasNotify(cyc === 0);
   }
 
   /* ---------- Stats ---------- */
   function chartSvg() {
-    var p = parseIso(S.profile.ramadan_start), start = Date.UTC(p.y, p.m, p.d), W = 640, H = 230, L = 30, B = 26, T = 10, bw = (W - L - 6) / 30, today = isoMs(todayIso());
+    var rmd = ramadanInfo().status === 'during', p = parseIso(S.profile.ramadan_start), start = rmd ? Date.UTC(p.y, p.m, p.d) : isoMs(todayIso()) - 29 * 86400000, W = 640, H = 230, L = 30, B = 26, T = 10, bw = (W - L - 6) / 30, today = isoMs(todayIso());
     var pts = [], s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(t('stChart')) + '">';
     [0, 25, 50, 75, 100].forEach(function (v) { var y = T + (H - T - B) * (1 - v / 100); s += '<line class="grid" x1="' + L + '" x2="' + W + '" y1="' + y + '" y2="' + y + '"/><text x="' + (L - 4) + '" y="' + (y + 3) + '" text-anchor="end">' + v + '</text>'; });
     var vals = [];
@@ -674,7 +789,7 @@
       vals.push(future ? null : v);
       var h = (H - T - B) * v / 100, x = L + i * bw + 2, y = H - B - h, col = v >= 100 ? '#3fc79a' : v >= 70 ? '#e0ac4a' : v >= 40 ? '#f0a23c' : '#6b8cff';
       s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - 4).toFixed(1) + '" height="' + Math.max(h, future ? 0 : 2).toFixed(1) + '" rx="3" fill="' + col + '"' + (ms === today ? ' stroke="#f3d98f" stroke-width="2"' : '') + (future ? ' opacity=".25"' : '') + '/>';
-      if (i === 0 || (i + 1) % 5 === 0) s += '<text x="' + (x + (bw - 4) / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + (i + 1) + '</text>';
+      if (i === 0 || (i + 1) % 5 === 0) s += '<text x="' + (x + (bw - 4) / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + (rmd ? i + 1 : d.getUTCDate()) + '</text>';
     }
     for (var j = 0; j < 30; j++) {
       if (vals[j] == null) continue; var a = 0, c = 0;
@@ -694,7 +809,7 @@
       '<button class="btn" data-act="share">' + esc(t('stShare')) + '</button>' +
       '<div class="card"><p class="msg">' + esc(motivation(row.points)) + '</p></div>' +
       '<div class="tiles"><div class="tile"><b>' + row.points + '</b><span>' + esc(t('score')) + '</span></div><div class="tile"><b>' + avg + '</b><span>' + esc(t('stAvg')) + '</span></div><div class="tile"><b>' + st.best + '</b><span>' + esc(t('stBest')) + '</span></div><div class="tile"><b>' + ays + '</b><span>' + esc(t('stTotalAyahs')) + '</span></div><div class="tile"><b>' + tas + '</b><span>' + esc(t('stTasbih')) + '</span></div></div>' +
-      '<div class="card"><div class="row between" style="margin-bottom:6px"><h3 class="gold">' + esc(t('stChart')) + '</h3><span class="muted" style="font-size:.8125rem">- - ' + esc(t('stWeek')) + '</span></div>' + chartSvg() + '</div>';
+      '<div class="card"><div class="row between" style="margin-bottom:6px"><h3 class="gold">' + esc(t(ramadanInfo().status === 'during' ? 'stChart' : 'weekGraph')) + '</h3><span class="muted" style="font-size:.8125rem">- - ' + esc(t('stWeek')) + '</span></div>' + chartSvg() + '</div>';
   }
 
   /* ---------- my account ---------- */
@@ -806,7 +921,7 @@
   /* ---------- push + messages from the admin ---------- */
   function b64ToU8(b) { var p = '='.repeat((4 - b.length % 4) % 4), r = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')), o = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) o[i] = r.charCodeAt(i); return o; }
   function sendSub(sub) {
-    return sb.auth.getSession().then(function (g) { return callApi({ action: 'subscribe', sub: sub.toJSON(), lang: lang() }, g.data && g.data.session ? g.data.session.access_token : null); });
+    return sb.auth.getSession().then(function (g) { return callApi({ action: 'subscribe', sub: sub.toJSON(), lang: lang(), city: (S.profile && S.profile.city) || 'duhok', pray: lsGet('rm_pray') !== '0' }, g.data && g.data.session ? g.data.session.access_token : null); });
   }
   function enablePush() {
     if (!sb || !cfg.VAPID_PUBLIC || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) { toast('warn', t('pushNo'), true); return; }
@@ -827,20 +942,131 @@
   }
   function checkAnnouncements() {
     if (!sb) return;
-    var raw = null; try { raw = localStorage.getItem('rm_ann_seen'); } catch (e) {}
-    var first = raw === null, seen = +raw || 0;
-    var q = sb.from('rm_announcements').select('id,title,body').order('id', { ascending: false }).limit(first ? 1 : 10);
+    var raw = lsGet('rm_ann_seen'), first = raw === null, seen = +raw || 0;
+    var since = (S.user && !S.user.guest && S.user.created_at) ? new Date(S.user.created_at).getTime() : (+lsGet('rm_first_seen') || 0);
+    var q = sb.from('rm_announcements').select('id,title,body,created_at').order('id', { ascending: false }).limit(first ? 1 : 10);
     if (!first) q = q.gt('id', seen);
     q.then(function (r) {
       if (r.error || !r.data) return;
       var max = r.data.length ? Math.max.apply(null, r.data.map(function (x) { return x.id; })) : seen;
-      try { localStorage.setItem('rm_ann_seen', String(max)); } catch (e) {}
+      lsSet('rm_ann_seen', String(max));
       if (first) return;
-      r.data.slice().reverse().forEach(function (a) { notify('info', a.title + ' — ' + a.body); });
+      r.data.filter(function (a) { return !since || new Date(a.created_at).getTime() > since; }).reverse().forEach(function (a) { notify('info', a.title + ' — ' + a.body); });
     }).catch(function () {});
   }
   setInterval(function () { if (S.profile && !document.hidden) checkAnnouncements(); }, 300000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && S.profile) checkAnnouncements(); });
+
+  /* ---------- chat: questions and answers ---------- */
+  var ADMIN_EMAIL = 'yuosif.ali2007@gmail.com';
+  var CH = { items: [], replies: {}, limit: 30, more: false, loaded: false, reply: null, mentions: [], timer: null, active: null };
+  function isAdmin() { return !!(S.user && S.user.email && String(S.user.email).toLowerCase() === ADMIN_EMAIL); }
+  function chatMaxId() {
+    var mx = 0; CH.items.forEach(function (m) { if (m.id > mx) mx = m.id; (CH.replies[m.id] || []).forEach(function (r) { if (r.id > mx) mx = r.id; }); }); return mx;
+  }
+  function updateChatDot() { var d = $('#chatdot'); if (d) d.hidden = !S.chatNew; }
+  function loadChat() {
+    if (!sb) return Promise.resolve();
+    return sb.from('rm_chat').select('*').is('parent_id', null).order('id', { ascending: false }).limit(CH.limit + 1).then(function (r) {
+      if (r.error || !r.data) return;
+      CH.more = r.data.length > CH.limit; CH.items = r.data.slice(0, CH.limit);
+      var ids = CH.items.map(function (x) { return x.id; });
+      if (!ids.length) { CH.replies = {}; return; }
+      return sb.from('rm_chat').select('*').in('parent_id', ids).order('id', { ascending: true }).then(function (r2) {
+        if (r2.error) return; CH.replies = {}; (r2.data || []).forEach(function (x) { (CH.replies[x.parent_id] = CH.replies[x.parent_id] || []).push(x); });
+      });
+    }).then(function () {
+      CH.loaded = true; lsSet('rm_chat_read', String(chatMaxId())); S.chatNew = false; updateChatDot();
+      if (S.view === 'chat') { var ae = document.activeElement; if (ae && ae.closest && ae.closest('.chatbox')) return; renderViewKeepScroll(); }
+    }).catch(function () {});
+  }
+  function openChat() { S.view = 'chat'; S.reader = null; S.sel = null; renderView(); window.scrollTo(0, 0); }
+  function chatPoll() { // background check: red dot for new messages and a toast when someone tags me
+    if (!sb || !S.profile || S.view === 'chat') return;
+    var meId = S.user && !S.user.guest ? S.user.id : null;
+    sb.from('rm_chat').select('id,user_name,mentions').order('id', { ascending: false }).limit(25).then(function (r) {
+      if (r.error || !r.data) return;
+      var mx = r.data.length ? r.data[0].id : 0, rd = lsGet('rm_chat_read'), mn = lsGet('rm_chat_men');
+      if (rd === null) { lsSet('rm_chat_read', String(mx)); rd = String(mx); }
+      if (mn === null) { lsSet('rm_chat_men', String(mx)); mn = String(mx); }
+      S.chatNew = mx > (+rd || 0); updateChatDot();
+      if (meId) {
+        var seenM = +mn || 0;
+        r.data.slice().reverse().forEach(function (m) { if (m.id > seenM && m.mentions && m.mentions.indexOf(meId) >= 0) notify('info', t('chatMentioned', { n: m.user_name })); });
+        lsSet('rm_chat_men', String(Math.max(seenM, mx)));
+      }
+    }).catch(function () {});
+  }
+  setInterval(function () { if (!document.hidden) chatPoll(); }, 60000);
+  setTimeout(chatPoll, 4000);
+  function participants() {
+    var seen = {}, out = [];
+    function add(m) { if (!seen[m.user_id] && (!S.user || m.user_id !== S.user.id)) { seen[m.user_id] = 1; out.push({ id: m.user_id, name: m.user_name, tok: String(m.user_name || '').replace(/\s+/g, '_') }); } }
+    CH.items.forEach(function (m) { add(m); (CH.replies[m.id] || []).forEach(add); });
+    return out;
+  }
+  function fmtBody(b) { return esc(b).replace(/(^|\s)(@[^\s@]+)/g, '$1<span class="mention">$2</span>').replace(/\n/g, '<br>'); }
+  function fmtTime(ts) { try { return new Date(ts).toLocaleString(loc(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+  function msgHtml(m, isReply) {
+    var mine = S.user && m.user_id === S.user.id, canDel = mine || isAdmin();
+    return '<div class="cmsg' + (isReply ? ' rep' : '') + (m.is_admin ? ' adm' : '') + '"><div class="ch"><button class="cname" data-act="chattag" data-v="' + esc(m.user_id) + '" data-n="' + esc(m.user_name) + '">' + esc(m.user_name) + '</button>' +
+      (m.is_admin ? '<span class="badge ok">' + esc(t('chatAdmin')) + '</span>' : '') + '<span class="muted ct">' + esc(fmtTime(m.created_at)) + '</span></div><div class="cb">' + fmtBody(m.body) + '</div>' +
+      '<div class="cact">' + (isReply || !S.user || S.user.guest ? '' : '<button class="link" data-act="chatreply" data-v="' + m.id + '">' + esc(t('chatReply')) + '</button>') + (canDel ? '<button class="link bad" data-act="chatdel" data-v="' + m.id + '">' + esc(t('chatDelete')) + '</button>' : '') + '</div></div>';
+  }
+  function composer(id, ph, parent) {
+    return '<div class="chatbox"><textarea id="' + id + '" rows="' + (parent ? 2 : 3) + '" maxlength="1000" placeholder="' + esc(ph) + '"></textarea><div class="sug" id="sug-' + id + '"></div><button class="btn" data-act="chatsend" data-v="' + (parent || 0) + '">' + esc(t('chatSend')) + '</button></div>';
+  }
+  function viewChat() {
+    var head = '<div class="row between" style="margin-bottom:6px"><button class="btn ghost small" data-act="chatback">' + esc(t('back2')) + '</button><h2 class="gold" style="font-family:var(--f-display)">' + esc(t('chatTitle')) + '</h2></div><p class="muted" style="font-size:.875rem">' + esc(t('chatSub')) + '</p>';
+    if (!CH.timer) CH.timer = setInterval(function () { if (S.view === 'chat' && !document.hidden) loadChat(); }, 7000);
+    if (!CH.loaded) { loadChat(); return head + '<p class="muted" style="text-align:center;padding:30px">' + esc(t('loading')) + '</p>'; }
+    var guest = !S.user || S.user.guest;
+    var box = guest ? '<div class="card" style="text-align:center;display:grid;gap:10px"><p>' + esc(t('chatNeedLogin')) + '</p><button class="btn" data-act="guestlogin">' + esc(t('signup')) + '</button></div>' : '<div class="card">' + composer('cmain', t('chatPh'), 0) + '</div>';
+    var list = CH.items.map(function (m) {
+      var reps = CH.replies[m.id] || [];
+      return '<div class="card cthread">' + msgHtml(m, false) + (reps.length ? '<div class="creps">' + reps.map(function (r) { return msgHtml(r, true); }).join('') + '</div>' : '') +
+        (CH.reply === m.id ? '<div class="creps">' + composer('crep', t('chatReplyPh'), m.id) + '</div>' : '') + '</div>';
+    }).join('') || '<p class="muted" style="text-align:center;padding:24px">' + esc(t('chatEmpty')) + '</p>';
+    return head + box + '<div class="threads">' + list + '</div>' + (CH.more ? '<button class="btn ghost" data-act="chatolder">' + esc(t('chatOlder')) + '</button>' : '');
+  }
+  function chatTarget() { return $(CH.reply ? '#crep' : '#cmain') || $('#cmain'); }
+  function chatTag(id, name) {
+    var ta = chatTarget(); if (!ta || !name || (S.user && id === S.user.id)) return;
+    var tok = String(name).replace(/\s+/g, '_');
+    if (!CH.mentions.some(function (m) { return m.id === id; })) CH.mentions.push({ id: id, tok: tok });
+    ta.value += (ta.value && !/\s$/.test(ta.value) ? ' ' : '') + '@' + tok + ' '; ta.focus();
+  }
+  function chatInput(ta) {
+    var box = $('#sug-' + ta.id); if (!box) return;
+    var m = /@([^\s@]*)$/.exec(ta.value.slice(0, ta.selectionStart || ta.value.length));
+    if (!m) { box.innerHTML = ''; return; }
+    CH.active = ta.id; var q = m[1].toLowerCase();
+    box.innerHTML = participants().filter(function (x) { return !q || x.tok.toLowerCase().indexOf(q) >= 0; }).slice(0, 6).map(function (x) { return '<button class="chip" type="button" data-act="chatpick" data-v="' + esc(x.id) + '">@' + esc(x.tok) + '</button>'; }).join('');
+  }
+  function chatPick(id) {
+    var ta = $('#' + CH.active); var pp = participants().filter(function (x) { return x.id === id; })[0]; if (!ta || !pp) return;
+    var pos = ta.selectionStart || ta.value.length, before = ta.value.slice(0, pos).replace(/@[^\s@]*$/, '@' + pp.tok + ' ');
+    ta.value = before + ta.value.slice(pos);
+    if (!CH.mentions.some(function (m) { return m.id === id; })) CH.mentions.push({ id: id, tok: pp.tok });
+    var box = $('#sug-' + ta.id); if (box) box.innerHTML = ''; ta.focus();
+  }
+  function chatSend(parent) {
+    var ta = $(parent ? '#crep' : '#cmain'); if (!ta || !sb || !S.user || S.user.guest) return;
+    var body = (ta.value || '').trim(); if (!body) return;
+    var ments = []; CH.mentions.forEach(function (m) { if (body.indexOf('@' + m.tok) >= 0 && ments.indexOf(m.id) < 0) ments.push(m.id); });
+    var btn = ta.parentNode.querySelector('.btn'); if (btn) btn.disabled = true;
+    sb.from('rm_chat').insert({ user_id: S.user.id, body: body, parent_id: parent || null, mentions: ments }).then(function (r) {
+      if (btn) btn.disabled = false;
+      if (r.error) { toast('warn', /rate/i.test(r.error.message || '') ? t('chatSlow') : t('chatFail'), true); return; }
+      ta.value = ''; CH.mentions = []; if (parent) CH.reply = null; loadChat().then(renderViewKeepScroll);
+    }).catch(function () { if (btn) btn.disabled = false; toast('warn', t('chatFail'), true); });
+  }
+  function chatDelete(id) {
+    if (!window.confirm(t('chatDeleteQ'))) return;
+    var done = function () { loadChat().then(renderViewKeepScroll); };
+    if (isAdmin()) { sb.auth.getSession().then(function (g) { return callApi({ action: 'admin_chat_delete', id: id }, g.data && g.data.session ? g.data.session.access_token : null); }).then(done).catch(done); }
+    else sb.from('rm_chat').delete().eq('id', id).then(done);
+  }
 
   /* ---------- settings sheet ---------- */
   function openSettings() {
@@ -851,6 +1077,7 @@
       '<div class="field"><label>' + esc(t('khatmaQ')) + '</label><div class="stepper"><button data-act="setk" data-v="-1">−</button><b id="setkv">' + p.khatma_count + '</b><button data-act="setk" data-v="1">+</button></div></div>' +
       '<div class="field"><label>' + esc(t('modeQ')) + '</label><div class="seg"><button class="' + (p.khatma_mode === 'daily' ? 'on' : '') + '" data-act="setmode" data-v="daily">' + esc(t('modeDaily')) + '</button><button class="' + (p.khatma_mode === 'prayer' ? 'on' : '') + '" data-act="setmode" data-v="prayer">' + esc(t('modePrayer')) + '</button></div></div>' +
       '<div class="row"><button class="btn ghost small" data-act="notifon">' + esc(t('notifOn')) + '</button><button class="chip' + (S.sound ? ' on' : '') + '" data-act="sound">' + esc(t('notifSound')) + '</button></div>' +
+      '<div class="row"><button class="chip' + (lsGet('rm_pray') !== '0' ? ' on' : '') + '" data-act="pray">' + esc(t('prayAlert')) + '</button><button class="chip' + (S.adhan ? ' on' : '') + '" data-act="adhan">' + esc(t('adhanOn')) + '</button></div><p class="muted" style="font-size:.8125rem">' + esc(t('prayAlertNote')) + '</p>' +
       '<button class="btn" data-act="savesettings">' + esc(t('save')) + '</button>' + (S.user.guest ? '<button class="btn ghost" data-act="guestlogin">' + esc(t('guestLogin')) + '</button><p class="muted" style="font-size:.8125rem">' + esc(t('guestNote')) + '</p>' : '<button class="btn ghost" data-act="logout">' + esc(t('logout')) + '</button>') +
       '<p class="credits">' + esc(t('credits')) + '</p></div></div>';
     document.body.insertAdjacentHTML('beforeend', h);
@@ -887,7 +1114,7 @@
     var c = city(), n = nowLocal(), iso = P.iso(n.y, n.m, n.d), tm = P.dayTimes(n.y, n.m, n.d, c), now = n.min + n.sec / 60, fired = firedSet(), ri = ramadanInfo(), q = quranState(), changed = false;
     function fire(key, at, win, type, msg) {
       key = iso + key; if (fired[key]) return;
-      if (now >= at) { fired[key] = 1; changed = true; if (now - at <= win) notify(type, msg); }
+      if (now >= at) { fired[key] = 1; changed = true; if (now - at <= win) { if (type === 'prayer') announcePrayer(msg); else notify(type, msg); } }
     }
     if (ri.status !== 'after') fire('suhoor', tm.fajr - 30, 10, 'info', t('notifSuhoor'));
     PR5.forEach(function (p, idx) {
@@ -914,6 +1141,8 @@
   /* ---------- events ---------- */
   var SHARE_COUNT = 0;
   root.addEventListener('input', function (e) {
+    if (e.target.id === 'dsearch') { S.duaSearch = e.target.value; var dp = e.target.selectionStart; renderView(); var de = $('#dsearch'); if (de) { de.focus(); try { de.setSelectionRange(dp, dp); } catch (x) {} } }
+    if (e.target.id === 'cmain' || e.target.id === 'crep') chatInput(e.target);
     if (e.target.id === 'qsearch') { S.search = e.target.value; var pos = e.target.selectionStart; renderView(); var el = $('#qsearch'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (x) {} } }
     if (e.target.id === 'rbg' || e.target.id === 'rfg') {
       var cur = THEMES[S.rtheme.t], bgv = $('#rbg').value, fgv = $('#rfg').value;
@@ -970,8 +1199,24 @@
       case 'setk': var kv = clamp(S.profile.khatma_count + (+v), 1, 10); S.profile.khatma_count = kv; $('#setkv').textContent = kv; break;
       case 'setmode': S.profile.khatma_mode = v; el.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === el); }); break;
       case 'sound': S.sound = !S.sound; try { localStorage.setItem('rm_sound', S.sound ? '1' : '0'); } catch (x) {} el.classList.toggle('on', S.sound); unlockAudio(); chime('prayer'); break;
+      case 'help': openHelp(); break;
+      case 'intronext': if (S.introStep >= INTRO.length - 1) { S.introStep = 0; finishIntro(); } else { S.introStep++; renderIntro(); } break;
+      case 'introskip': S.introStep = 0; finishIntro(); break;
+      case 'introlang': I18N.setLang(v); lsSet('rm_lang', v); renderIntro(); break;
+      case 'duaopen': S.duaOpen = S.duaOpen === +v ? null : +v; renderViewKeepScroll(); break;
+      case 'pray': var pon = lsGet('rm_pray') === '0'; lsSet('rm_pray', pon ? '1' : '0'); el.classList.toggle('on', pon); refreshPush(); break;
+      case 'adhan': S.adhan = !S.adhan; lsSet('rm_adhan', S.adhan ? '1' : '0'); el.classList.toggle('on', S.adhan); if (S.adhan) { primeAdhan(); playAdhan(); } else stopAdhan(); break;
+      case 'adhanstop': stopAdhan(); el.remove(); break;
+      case 'chat': openChat(); break;
+      case 'chatback': S.view = 'today'; renderView(); window.scrollTo(0, 0); break;
+      case 'chatsend': chatSend(+v || 0); break;
+      case 'chatreply': CH.reply = CH.reply === +v ? null : +v; renderViewKeepScroll(); break;
+      case 'chatdel': chatDelete(+v); break;
+      case 'chatolder': CH.limit += 30; loadChat(); break;
+      case 'chattag': chatTag(v, el.getAttribute('data-n')); break;
+      case 'chatpick': chatPick(v); break;
       case 'notifon': unlockAudio(); chime('prayer'); enablePush(); break;
-      case 'savesettings': S.profile.city = $('#setcity').value; S.profile.ramadan_start = $('#setstart').value || S.profile.ramadan_start; touchProfile(); closeSheet(); renderApp(); break;
+      case 'savesettings': S.profile.city = $('#setcity').value; S.profile.ramadan_start = $('#setstart').value || S.profile.ramadan_start; touchProfile(); closeSheet(); renderApp(); refreshPush(); break;
       case 'logout': flush().then(function () { return sb.auth.signOut(); }).then(function () { closeSheet(); S.user = null; S.profile = null; S.days = {}; S.authMode = 'choose'; renderAuth(); }); break;
       case 'task': mutateDay(todayIso(), function (r) { r.tasks[v] = !r.tasks[v]; }); renderViewKeepScroll(); break;
       case 'goauto': if (v === 'quran') { S.view = 'quran'; renderView(); window.scrollTo(0, 0); } else { S.view = 'worship'; renderView(); window.scrollTo(0, 0); } break;
@@ -986,9 +1231,9 @@
       case 'markread': markRead(); break;
       case 'bookmark': toggleBookmark(); break;
       case 'copy': var txt = $('#dua' + v).textContent; var done = function () { toast('ok', t('dCopied'), true); }; try { navigator.clipboard.writeText(txt).then(done, function () {}); } catch (x) {} break;
-      case 'tasmode': S.tasMode = +v; S.tasCount = 0; renderView(); break;
-      case 'dhikr': S.dhikr = +v; S.tasCount = 0; renderView(); break;
-      case 'tasreset': S.tasCount = 0; renderView(); break;
+      case 'tasmode': S.tasMode = +v; S.tasCount = 0; swSend({ type: 'tas_clear' }); renderView(); break;
+      case 'dhikr': S.dhikr = +v; S.tasCount = 0; swSend({ type: 'tas_clear' }); renderView(); break;
+      case 'tasreset': S.tasCount = 0; swSend({ type: 'tas_clear' }); renderView(); break;
       case 'namenav': var sl = $('#nameslider'); if (sl) { var dir = document.documentElement.dir === 'rtl' ? -1 : 1, step = (+v) * -1; S.nameIdx = clamp(S.nameIdx + (step), 0, 98); sl.scrollTo({ left: sl.clientWidth * S.nameIdx * dir, behavior: 'smooth' }); } break;
       case 'share': openShare();
         break;

@@ -209,5 +209,6 @@
     return s;
   }
   function setLang(l) { lang = l; document.documentElement.lang = l === 'ku-ba' || l === 'ku-so' ? 'ckb' : l; document.documentElement.dir = l === 'en' ? 'ltr' : 'rtl'; }
-  window.I18N = { t: t, setLang: setLang, getLang: function () { return lang; }, LANGS: [['ku-ba', 'کوردی بادینی'], ['ku-so', 'کوردی سۆرانی'], ['ar', 'العربية'], ['en', 'English']] };
+  function add(o) { for (var k in o) S[k] = o[k]; }
+  window.I18N = { add: add, t: t, setLang: setLang, getLang: function () { return lang; }, LANGS: [['ku-ba', 'کوردی بادینی'], ['ku-so', 'کوردی سۆرانی'], ['ar', 'العربية'], ['en', 'English']] };
 })();
